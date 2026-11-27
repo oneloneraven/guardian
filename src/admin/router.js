@@ -45,14 +45,11 @@ function decode(segment) {
 
 /**
  * @param {Request} request
- * @param {import("../settings/store.js").SettingsEnv} env
  * @returns {Promise<Record<string, unknown> | Response>}
  */
-async function readBody(request, env) {
+async function readBody(request) {
   const origin = request.headers.get("Origin");
-  if (origin && (!env.ADMIN_HOST || origin !== `https://${env.ADMIN_HOST}`)) {
-    return json(403, { error: "Forbidden" });
-  }
+  if (origin && origin !== new URL(request.url).origin) return json(403, { error: "Forbidden" });
   if (request.method === "DELETE") return {};
   if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
     return json(415, { error: "body must be JSON" });
@@ -82,7 +79,7 @@ export async function routeAdmin(request, env, identity, fetchImpl) {
     if (!match) continue;
     const handler = methods[request.method];
     if (!handler) return json(405, { error: "Method not allowed" });
-    const body = request.method === "GET" ? {} : await readBody(request, env);
+    const body = request.method === "GET" ? {} : await readBody(request);
     if (body instanceof Response) return body;
     try {
       return await handler({ env, email: identity.email, fetchImpl }, body, decode(match[1] ?? ""));

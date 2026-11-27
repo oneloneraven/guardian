@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { browser, expect } from "@wdio/globals";
+import { $, browser, expect } from "@wdio/globals";
 
 const WCAG_22_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const PAGES = ["/"];
@@ -15,24 +15,32 @@ async function violations() {
   return result.violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(" ")).join(", ")}`);
 }
 
-for (const colorScheme of ["light", "dark"]) {
-  describe(`${colorScheme} theme at phone width @safari`, () => {
-    before(async function () {
-      if (!browser.isBidi) {
-        // Safari speaks classic WebDriver only, which can't emulate a colour scheme or set the viewport.
-        if (colorScheme === "dark") this.skip();
-        await browser.setWindowSize(375, 812);
-        return;
-      }
-      await browser.setViewport({ width: 375, height: 812 });
-      await browser.emulate("colorScheme", colorScheme);
-    });
+const WIDTHS = [
+  ["phone", 375, 812],
+  ["desktop", 1280, 900],
+];
 
-    for (const path of PAGES) {
-      it(`${path} has no WCAG 2.2 AA violations`, async () => {
-        await browser.url(path);
-        expect(await violations()).toEqual([]);
+for (const colorScheme of ["light", "dark"]) {
+  for (const [width, w, height] of WIDTHS) {
+    describe(`${colorScheme} theme at ${width} width @safari`, () => {
+      before(async function () {
+        if (!browser.isBidi) {
+          // Safari speaks classic WebDriver only, which can't emulate a colour scheme or set the viewport.
+          if (colorScheme === "dark") this.skip();
+          await browser.setWindowSize(Number(w), Number(height));
+          return;
+        }
+        await browser.setViewport({ width: Number(w), height: Number(height) });
+        await browser.emulate("colorScheme", colorScheme);
       });
-    }
-  });
+
+      for (const path of PAGES) {
+        it(`${path} has no WCAG 2.2 AA violations`, async () => {
+          await browser.url(path);
+          await $("#standard").waitForExist();
+          expect(await violations()).toEqual([]);
+        });
+      }
+    });
+  }
 }

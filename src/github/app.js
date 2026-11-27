@@ -57,6 +57,7 @@ async function appCall(fetchImpl, method, path, jwt) {
   const response = await fetchImpl(`${API}${path}`, {
     method,
     headers: { ...HEADERS, Authorization: `Bearer ${jwt}` },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) throw new GithubUnavailable(`github-${response.status}`);
   return response.json();

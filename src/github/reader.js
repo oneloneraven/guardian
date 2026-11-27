@@ -39,15 +39,16 @@ function nextLink(header) {
  * timeout as status 0.
  * @param {string} token
  * @param {typeof fetch} [fetchImpl]
+ * @param {number} [timeoutMs]
  * @returns {Reader}
  */
-export function reader(token, fetchImpl = fetch) {
+export function reader(token, fetchImpl = fetch, timeoutMs = TIMEOUT_MS) {
   /** @param {string} url */
   async function request(url) {
     try {
       const response = await fetchImpl(url, {
         headers: { ...HEADERS, Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       return {
         status: response.status,

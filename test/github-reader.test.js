@@ -61,10 +61,8 @@ test("get turns a timeout into status 0", async () => {
     new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
     });
-  const started = Date.now();
-  expect(await reader("t", hang).get("/slow")).toEqual({ status: 0, body: null });
-  expect(Date.now() - started).toBeGreaterThanOrEqual(9_000);
-}, 15_000);
+  expect(await reader("t", hang, 20).get("/slow")).toEqual({ status: 0, body: null });
+});
 
 test("get sends the token and returns the parsed body", async () => {
   /** @type {Headers | undefined} */

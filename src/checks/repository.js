@@ -110,14 +110,13 @@ const rulesetEnforced = expectingKind("/settings/rules", async (ctx, out, expect
     ctx.read,
     `/repos/${ctx.repo}/rulesets?includes_parents=true`,
     "the rulesets",
-    "Administration read",
+    "Metadata read",
   );
   if ("unreadable" in summaries) return out.unknown(summaries.unreadable);
   const covering = [];
   for (const summary of summaries.items.filter(item => item.target === "branch")) {
     const { status, body } = await ctx.read.get(`/repos/${ctx.repo}/rulesets/${summary.id}`);
-    if (status !== 200)
-      return out.unknown(unreadable(`the ruleset \`${summary.name}\``, status, "Administration read"));
+    if (status !== 200) return out.unknown(unreadable(`the ruleset \`${summary.name}\``, status, "Metadata read"));
     if (coversDefaultBranch(body, ctx.live.default_branch)) covering.push(body);
   }
   if (covering.length === 0) return out.fail("No active ruleset protects the default branch");
@@ -143,7 +142,7 @@ const collaborators = kind("/settings/access", async (ctx, out) => {
   const owners = new Set(ctx.owners.map(owner => owner.toLowerCase()));
   const base = `/repos/${ctx.repo}`;
   const [direct, teams, invitations] = await Promise.all([
-    list(ctx.read, `${base}/collaborators?affiliation=direct`, "the collaborators", "Administration read"),
+    list(ctx.read, `${base}/collaborators?affiliation=direct`, "the collaborators", "Metadata read"),
     list(ctx.read, `${base}/teams`, "the teams", "Administration read"),
     list(ctx.read, `${base}/invitations`, "the invitations", "Administration read"),
   ]);
@@ -201,10 +200,10 @@ const securityFeatures = expectingKind("/settings/security_analysis", async (ctx
   for (const feature of expected.securityFeatures) {
     if (feature === "private_vulnerability_reporting") {
       const { status, body } = await ctx.read.get(`/repos/${ctx.repo}/private-vulnerability-reporting`);
-      if (status !== 200) unreadables.push(unreadable(`\`${feature}\``, status, "Administration read"));
+      if (status !== 200) unreadables.push(unreadable(`\`${feature}\``, status, "Metadata read"));
       else if (body?.enabled !== true) problems.push(`\`${feature}\` is off`);
     } else if (!ctx.live.security_and_analysis) {
-      unreadables.push(unreadable(`\`${feature}\``, 403, "Administration read"));
+      unreadables.push(unreadable(`\`${feature}\``, 403, "Metadata read"));
     } else if (ctx.live.security_and_analysis[feature]?.status !== "enabled") {
       problems.push(`\`${feature}\` is off`);
     }
@@ -230,7 +229,7 @@ const actionsSettings = expectingKind("/settings/actions", async (ctx, out, expe
 
 const environments = expectingKind("/settings/environments", async (ctx, out, expected) => {
   const base = `/repos/${ctx.repo}`;
-  const found = await list(ctx.read, `${base}/environments`, "the environments", "Administration read");
+  const found = await list(ctx.read, `${base}/environments`, "the environments", "Actions read");
   if ("unreadable" in found) return out.unknown(found.unreadable);
   /** @type {string[]} */
   const problems = [];
@@ -257,7 +256,7 @@ const environments = expectingKind("/settings/environments", async (ctx, out, ex
       ctx.read,
       `${base}/environments/${encodeURIComponent(wanted.name)}/deployment-branch-policies`,
       `the deployment refs of \`${wanted.name}\``,
-      "Administration read",
+      "Actions read",
     );
     if ("unreadable" in policies) {
       unreadables.push(policies.unreadable);
@@ -302,7 +301,7 @@ const secretsKnown = expectingKind("/settings/secrets/actions", async (ctx, out,
     expected.repositorySecrets,
     "repository",
   );
-  const found = await list(ctx.read, `${base}/environments`, "the environments", "Administration read");
+  const found = await list(ctx.read, `${base}/environments`, "the environments", "Actions read");
   if ("unreadable" in found) unreadables.push(found.unreadable);
   else {
     for (const { name } of found.items) {
@@ -311,7 +310,7 @@ const secretsKnown = expectingKind("/settings/secrets/actions", async (ctx, out,
           ctx.read,
           `${base}/environments/${encodeURIComponent(name)}/secrets`,
           `the secrets of \`${name}\``,
-          "Secrets read",
+          "Environments read",
         ),
         expected.environmentSecrets[name] ?? [],
         name,

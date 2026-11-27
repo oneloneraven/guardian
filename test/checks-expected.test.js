@@ -50,6 +50,16 @@ test("a skipped environment step moves its secrets to repository level", () => {
   expect(result.repositorySecrets).toEqual(expect.arrayContaining(["CLOUDFLARE_DEPLOY_TOKEN", "OWNER_EMAIL"]));
 });
 
+test("a skipped sub-step of an environment step drops the environment and moves its secrets to repository level", () => {
+  const record = { ...guardian, skipped: { "github:cloudflare-opentofu:1-production": "No GitHub environment" } };
+  const result = expected({ record });
+  expect(result.environments.map(environment => environment.name)).toEqual(["infra"]);
+  expect(result.environmentSecrets.production).toBeUndefined();
+  expect(result.repositorySecrets).toEqual(expect.arrayContaining(["CLOUDFLARE_DEPLOY_TOKEN", "OWNER_EMAIL"]));
+  const unrelated = { ...guardian, skipped: { "github:cloudflare-opentofu:10": "Different step" } };
+  expect(expected({ record: unrelated }).environments.map(environment => environment.name)).toContain("production");
+});
+
 test("whenHolds treats an array as any-of and !key as falsy", () => {
   const flags = { a: true, b: false };
   expect(whenHolds(undefined, flags)).toBe(true);

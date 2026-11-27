@@ -12,6 +12,12 @@
  * }} Expected
  */
 
+/**
+ * @param {string} step
+ * @param {Record<string, string>} skipped
+ */
+const stepSkipped = (step, skipped) => Object.keys(skipped).some(key => key === step || key.startsWith(`${step}-`));
+
 export class RecordError extends Error {}
 
 /** @param {unknown} value */
@@ -79,7 +85,7 @@ export function expectedFor({ standard, record, repo, owner, visibility, plan })
   /** @type {any[]} */
   const environmentEntries = entries("environments");
   const skippedEnvironments = new Set(
-    environmentEntries.filter(entry => entry.step && entry.step in skipped).map(entry => entry.name),
+    environmentEntries.filter(entry => entry.step && stepSkipped(entry.step, skipped)).map(entry => entry.name),
   );
 
   const environments = environmentEntries

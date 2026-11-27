@@ -332,12 +332,12 @@ test("a secret named in an exception's match is allowed", async () => {
   expect(result.status).toBe("pass");
 });
 
-test('a 403 on environment secrets makes secrets-known Unknown naming "Secrets read" and leaves environments Pass', async () => {
+test('a 403 on environment secrets makes secrets-known Unknown naming "Environments read" and leaves environments Pass', async () => {
   const routes = { ...secretRoutes(), [`/repos/${R}/environments/production/secrets`]: { status: 403 } };
   const read = stubReader(routes);
   const secrets = await REPOSITORY_KINDS["secrets-known"](context({ read }));
   expect(secrets.status).toBe("unknown");
-  expect(secrets.reason).toContain("Secrets read");
+  expect(secrets.reason).toContain("Environments read");
   expect((await REPOSITORY_KINDS["environments-match"](context({ read }))).status).toBe("pass");
 });
 

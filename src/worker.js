@@ -1,4 +1,5 @@
 import { routeAdmin } from "./admin/router.js";
+import { runScheduled } from "./cron.js";
 import { handleGithubWebhook } from "./github/webhook.js";
 import { adminIdentity } from "./lib/access.js";
 
@@ -27,5 +28,14 @@ export default {
     }
     if (pathname === "/v1/github/webhook") return handleGithubWebhook(request, env, ctx);
     return notFound();
+  },
+
+  /**
+   * @param {{ cron: string, scheduledTime: number }} controller
+   * @param {Parameters<typeof runScheduled>[0]} env
+   * @param {{ waitUntil: (promise: Promise<unknown>) => void }} ctx
+   */
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(runScheduled(env, controller, ctx));
   },
 };

@@ -47,6 +47,9 @@
           "migrations_dir": "migrations"
         }
       ],
+      "triggers": {
+        "crons": ["*/5 * * * *", "41 3 * * *"]
+      },
       "routes": [
         {
           "pattern": "guardian-api.oneloneraven.com/*",

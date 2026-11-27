@@ -142,7 +142,9 @@ test("sweep checks the organisation and every installed repository, recording a 
     env.DB.prepare("INSERT INTO settings (key, value) VALUES ('apps', '[]')"),
   ]);
   const outcome = await sweep(env, "sweep", { readerFor: async () => fakeReader(routes()) });
-  expect(outcome).toEqual({ checked: 7, unknown: null });
+  expect(outcome).toMatchObject({ checked: 7, unknown: null });
+  expect(outcome.transitions).toHaveLength(7);
+  expect(outcome.transitions.map(transition => transition.check)).toContain("deploy-keys");
   const results = await stored();
   expect(results["guardian/visibility"].status).toBe("pass");
   expect(results["guardian/deploy-keys"]).toEqual({ status: "skipped", reason: "A deploy key for the build box" });
@@ -256,7 +258,8 @@ test("when GitHub is unavailable every known check is Unknown naming why", async
     },
   });
   const reason = "Guardian can't reach GitHub: github-app-not-configured";
-  expect(outcome).toEqual({ checked: 7, unknown: reason });
+  expect(outcome).toMatchObject({ checked: 7, unknown: reason });
+  expect(outcome.transitions).toHaveLength(7);
   const results = await stored();
   expect(Object.keys(results).sort()).toEqual(
     [

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, expect, test } from "vitest";
-import { deliverPending, raise } from "../src/alerts/outbox.js";
+import { deliverPending, pruneAlerts, raise } from "../src/alerts/outbox.js";
 
 const base = { DB: env.DB, DISCORD_WEBHOOK_URL: "https://discord.example.test/api/webhooks/1/t" };
 
@@ -169,4 +169,23 @@ test("deliverPending stops at the first Discord failure and leaves the rest pend
   expect((await rows()).map(row => row.notified)).toEqual([0, 0]);
   const retry = discord();
   expect(await deliverPending(base, retry.fetchImpl)).toBe(2);
+});
+
+test("pruneAlerts keeps 89 days, and drops 91 days only when notified", async () => {
+  const now = new Date("2026-11-27T12:00:00.000Z");
+  const ago = (/** @type {number} */ days) => new Date(now.getTime() - days * 86_400_000).toISOString();
+  const insert = (/** @type {string} */ reason, /** @type {number} */ days, /** @type {number} */ notified) =>
+    env.DB.prepare(
+      "INSERT INTO alerts (kind, target, subject, reason, posted_at, notified) VALUES ('fail', 't', 's', ?1, ?2, ?3)",
+    )
+      .bind(reason, ago(days), notified)
+      .run();
+  await insert("fresh-notified", 89, 1);
+  await insert("old-notified", 91, 1);
+  await insert("old-pending", 91, 0);
+  expect(await pruneAlerts(env, now)).toBe(1);
+  expect((await env.DB.prepare("SELECT reason FROM alerts ORDER BY id").all()).results).toEqual([
+    { reason: "fresh-notified" },
+    { reason: "old-pending" },
+  ]);
 });

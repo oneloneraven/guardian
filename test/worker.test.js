@@ -35,3 +35,15 @@ test("without an admin host configured, no request is treated as admin", async (
   });
   expect(await response.text()).toBe("asset");
 });
+
+test("the API host never serves /api, other than health", async () => {
+  const response = await worker.fetch(new Request("https://example.test/api/settings"), admin);
+  expect(response.status).toBe(404);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+});
+
+test("the admin host refuses /api to anyone the owner check refuses", async () => {
+  const refused = { ...admin, APP_ENV: "production", ACCESS_TEAM_DOMAIN: "", ACCESS_AUD: "" };
+  const response = await worker.fetch(new Request("https://admin.example.test/api/settings"), refused);
+  expect(response.status).toBe(404);
+});

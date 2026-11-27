@@ -97,25 +97,29 @@ export async function pinStandard(env, { version, sha256, email }, fetchImpl = f
   const pin = { version, sha256: expected };
   const previous = await currentPin(env);
   try {
-    await changeSetting(env, {
-      email,
-      key: "standard",
-      from: previous === "unreadable" ? null : previous,
-      to: pin,
-      apply: db => [
-        db
-          .prepare(
-            `INSERT INTO standard (version, sha256, body, verified_at) VALUES (?1, ?2, ?3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    await changeSetting(
+      env,
+      {
+        email,
+        key: "standard",
+        from: previous === "unreadable" ? null : previous,
+        to: pin,
+        apply: db => [
+          db
+            .prepare(
+              `INSERT INTO standard (version, sha256, body, verified_at) VALUES (?1, ?2, ?3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
            ON CONFLICT (version) DO UPDATE SET sha256 = excluded.sha256, body = excluded.body, verified_at = excluded.verified_at`,
-          )
-          .bind(version, expected, downloaded.body),
-        db
-          .prepare(
-            "INSERT INTO settings (key, value) VALUES ('standard', ?1) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-          )
-          .bind(JSON.stringify(pin)),
-      ],
-    });
+            )
+            .bind(version, expected, downloaded.body),
+          db
+            .prepare(
+              "INSERT INTO settings (key, value) VALUES ('standard', ?1) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            )
+            .bind(JSON.stringify(pin)),
+        ],
+      },
+      fetchImpl,
+    );
   } catch (error) {
     console.error("Saving the standard failed", error instanceof Error ? error.message : error);
     return { ok: false, reason: "Couldn't save the standard" };

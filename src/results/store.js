@@ -22,12 +22,13 @@ const DAY_MS = 86_400_000;
  */
 export async function saveResult(env, { target, check, result, by, at }) {
   const old = await env.DB.prepare(
-    "SELECT status, reason, unknown_sweeps AS unknownSweeps FROM results WHERE target = ?1 AND check_id = ?2",
+    "SELECT status, reason, previous_status AS previousStatus, unknown_sweeps AS unknownSweeps FROM results WHERE target = ?1 AND check_id = ?2",
   )
     .bind(target, check)
     .first();
   const previous = /** @type {Result["status"] | null} */ (old ? /** @type {any} */ (old.status) : null);
   const changed = previous !== result.status;
+  const storedPrevious = changed ? previous : (old?.previousStatus ?? null);
   const unknownSweeps =
     result.status !== "unknown"
       ? 0
@@ -47,7 +48,7 @@ export async function saveResult(env, { target, check, result, by, at }) {
        changed_by = CASE WHEN results.status = excluded.status THEN results.changed_by ELSE excluded.changed_by END,
        unknown_sweeps = excluded.unknown_sweeps`,
   )
-    .bind(target, check, result.status, result.reason, result.link, previous, at, by, unknownSweeps)
+    .bind(target, check, result.status, result.reason, result.link, storedPrevious, at, by, unknownSweeps)
     .run();
   return {
     target,

@@ -21,6 +21,7 @@ const DEFAULT_ORG = "oneloneraven";
 const ORGANISATION = "organisation";
 const RECORD_PATH = ".bootstrap/record.json";
 const RECORD_CHECK = "record-accepted";
+const NEEDS_VISIBILITY = new Set(["security-features", "ruleset-enforced"]);
 const ACCEPTED_UNREADABLE = "The accepted record can't be read";
 
 /** @param {RunEnv} env */
@@ -203,7 +204,7 @@ export async function checkRepository(env, read, name, by) {
           record: accepted,
           repo: name,
           owner: org,
-          visibility: (expectedVisibility ?? live.visibility) === "public" ? "public" : "private",
+          visibility: expectedVisibility ?? "public",
           plan,
         });
 
@@ -213,7 +214,9 @@ export async function checkRepository(env, read, name, by) {
     name,
     checks,
     async check => {
-      const result = await runCheck(check, REPOSITORY_KINDS, ctx, exceptions);
+      const withheld = !expectedVisibility && NEEDS_VISIBILITY.has(String(check.kind)) && !("unknown" in expected);
+      const scoped = withheld ? { ...ctx, expected: { unknown: "Expected visibility not set" } } : ctx;
+      const result = await runCheck(check, REPOSITORY_KINDS, scoped, exceptions);
       return check.id === RECORD_CHECK && recordFailure && result.status !== "skipped"
         ? unknown(recordFailure)
         : result;

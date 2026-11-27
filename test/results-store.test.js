@@ -53,6 +53,14 @@ test("changed_at and changed_by move only when the status changes", async () => 
   });
 });
 
+test("previous_status keeps the status before the last change across a repeat", async () => {
+  await saveResult(env, { ...at("sweep", "2026-11-27T10:00:00.000Z"), result: result("pass") });
+  await saveResult(env, { ...at("sweep", "2026-11-27T10:15:00.000Z"), result: result("fail") });
+  const repeat = await saveResult(env, { ...at("sweep", "2026-11-27T10:30:00.000Z"), result: result("fail") });
+  expect(repeat.previous).toBe("fail");
+  expect(await row()).toMatchObject({ status: "fail", previous_status: "pass" });
+});
+
 test("reasonChanged is true only when the status is unchanged and the reason differs", async () => {
   await saveResult(env, { ...at("sweep", "2026-11-27T10:00:00.000Z"), result: result("fail", "One") });
   const same = await saveResult(env, { ...at("sweep", "2026-11-27T10:15:00.000Z"), result: result("fail", "One") });

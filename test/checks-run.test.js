@@ -184,6 +184,30 @@ test("a repository GitHub lists that Guardian hasn't seen is added with no expec
   });
 });
 
+test("with no expected visibility, security-features and ruleset-enforced are Unknown, and environments still run", async () => {
+  const withKinds = {
+    ...standard,
+    checks: [...standard.checks, security("features", "security-features"), security("ruleset", "ruleset-enforced")],
+  };
+  const body = JSON.stringify(withKinds);
+  const sha = await sha256(body);
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO standard (version, sha256, body, verified_at) VALUES ('v9.9.9', ?1, ?2, 'now')").bind(
+      sha,
+      body,
+    ),
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('standard', ?1)").bind(
+      JSON.stringify({ version: "v9.9.9", sha256: sha }),
+    ),
+  ]);
+  const transitions = await checkRepository(env, fakeReader(routes()), "guardian", "sweep");
+  const by = Object.fromEntries(transitions.map(transition => [transition.check, transition]));
+  for (const id of ["features", "ruleset", "visibility"]) {
+    expect(by[id], id).toMatchObject({ status: "unknown", reason: "Expected visibility not set" });
+  }
+  expect(by.environments.status).toBe("pass");
+});
+
 test("an unreadable accepted record makes the checks that need expectations Unknown", async () => {
   await pinStandard();
   await env.DB.prepare(

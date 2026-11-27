@@ -76,6 +76,8 @@ export function describeChange({ actor, key, to }) {
       return `${who} pinned the standard to ${String(value?.version)}`;
     case "owners":
       return `${who} changed the owners`;
+    case "check-alerts":
+      return `${who} turned check alerts ${to === true ? "on" : "off"}`;
     case "apps":
       return `${who} changed the Apps`;
     case "repositories":

@@ -68,6 +68,7 @@ const ROUTES = [
   ["GET", "/api/settings", undefined],
   ["PUT", "/api/owners", { values: ["raven"] }],
   ["PUT", "/api/apps", { values: ["engage"] }],
+  ["PUT", "/api/alerts", { enabled: true }],
   ["PUT", "/api/repositories/engage", { expectedVisibility: "public" }],
   ["POST", "/api/exceptions", { target: "engage", check: "secrets-known", reason: "Better Stack" }],
   ["DELETE", "/api/exceptions/1", undefined],
@@ -108,6 +109,7 @@ test("GET /api/settings returns every section, empty to start with", async () =>
     standard: null,
     owners: [],
     apps: [],
+    alerts: { enabled: false },
     repositories: [],
     exceptions: [],
     tokens: [],
@@ -157,6 +159,34 @@ test("each mutation is saved, audited and announced once", async () => {
     from: { tokenId: "abc123", name: "Engage Deploy", purpose: "Deploys Engage", repository: null },
     to: null,
   });
+});
+
+test("PUT /api/alerts is audited and announced, and refuses a non-boolean with 400", async () => {
+  const out = outbound();
+  const on = await send(call("PUT", "/api/alerts", { enabled: true }), owner, out.fetchImpl);
+  expect(on.status).toBe(200);
+  expect((await env.DB.prepare("SELECT value FROM settings WHERE key = 'check-alerts'").first())?.value).toBe('"on"');
+  expect((await (await send(call("GET", "/api/settings"))).json()).alerts).toEqual({ enabled: true });
+  const off = await send(call("PUT", "/api/alerts", { enabled: false }), owner, out.fetchImpl);
+  expect(off.status).toBe(200);
+  expect((await (await send(call("GET", "/api/settings"))).json()).alerts).toEqual({ enabled: false });
+  expect(out.posted).toEqual([
+    `Guardian settings: the owner changed check-alerts: https://${HOST}/`,
+    `Guardian settings: the owner changed check-alerts: https://${HOST}/`,
+  ]);
+  const audit = (
+    await env.DB.prepare("SELECT key, from_value, to_value, notified FROM settings_audit ORDER BY id").all()
+  ).results;
+  expect(audit).toEqual([
+    { key: "check-alerts", from_value: "false", to_value: "true", notified: 1 },
+    { key: "check-alerts", from_value: "true", to_value: "false", notified: 1 },
+  ]);
+  for (const enabled of ["on", 1, null, undefined]) {
+    const response = await send(call("PUT", "/api/alerts", { enabled }), owner, out.fetchImpl);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "enabled must be true or false" });
+  }
+  expect(await auditCount()).toBe(2);
 });
 
 test("a blank exception reason or token purpose answers 400 and audits nothing", async () => {

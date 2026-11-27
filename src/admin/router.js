@@ -7,6 +7,7 @@ import {
   postException,
   postStandard,
   postToken,
+  putAlerts,
   putNames,
   putRepository,
   readSettings,
@@ -19,6 +20,7 @@ import {
 const ROUTES = [
   { pattern: /^\/api\/settings$/, methods: { GET: ({ env }) => readSettings(env).then(body => json(200, body)) } },
   { pattern: /^\/api\/owners$/, methods: { PUT: (context, body) => putNames(context, "owners", body) } },
+  { pattern: /^\/api\/alerts$/, methods: { PUT: putAlerts } },
   { pattern: /^\/api\/apps$/, methods: { PUT: (context, body) => putNames(context, "apps", body) } },
   {
     pattern: /^\/api\/repositories\/([^/]+)$/,

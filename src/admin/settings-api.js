@@ -72,11 +72,12 @@ function parsed(value) {
 /** @param {SettingsEnv} env */
 export async function readSettings(env) {
   const all = async (/** @type {string} */ sql) => env.DB.prepare(sql).all();
-  const [pin, loaded, owners, apps, repositories, exceptions, tokens, audit] = await Promise.all([
+  const [pin, loaded, owners, apps, alerts, repositories, exceptions, tokens, audit] = await Promise.all([
     readSetting(env, "standard"),
     loadStandard(env),
     readSetting(env, "owners"),
     readSetting(env, "apps"),
+    readSetting(env, "check-alerts"),
     all(
       "SELECT name, expected_visibility AS expectedVisibility, accepted_record_sha AS acceptedRecordSha FROM repositories ORDER BY name",
     ),
@@ -96,6 +97,7 @@ export async function readSettings(env) {
     standard,
     owners: list(owners),
     apps: list(apps),
+    alerts: { enabled: alerts === "on" },
     repositories: repositories.results,
     exceptions: exceptions.results,
     tokens: tokens.results,
@@ -140,6 +142,33 @@ export async function putNames({ env, email, fetchImpl }, key, body) {
             "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
           )
           .bind(key, JSON.stringify(to)),
+      ],
+    },
+    fetchImpl,
+  );
+  return json(200, { ok: true });
+}
+
+/**
+ * @param {Context} context
+ * @param {Record<string, unknown>} body
+ */
+export async function putAlerts({ env, email, fetchImpl }, body) {
+  const enabled = body.enabled;
+  if (typeof enabled !== "boolean") throw new Invalid("enabled must be true or false");
+  await changeSetting(
+    env,
+    {
+      email,
+      key: "check-alerts",
+      from: (await readSetting(env, "check-alerts")) === "on",
+      to: enabled,
+      apply: db => [
+        db
+          .prepare(
+            "INSERT INTO settings (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+          )
+          .bind("check-alerts", JSON.stringify(enabled ? "on" : "off")),
       ],
     },
     fetchImpl,

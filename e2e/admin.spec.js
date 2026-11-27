@@ -33,9 +33,11 @@ const SETTINGS = {
 };
 
 const browserName = () => String(browser.capabilities.browserName);
+// Chrome doesn't match a "**/" glob against the path, so mocks name the full URL.
+const api = path => new URL(path, browser.options.baseUrl).href;
 
 async function mockSettings(body = SETTINGS) {
-  const mock = await browser.mock("**/api/settings", { method: "get" });
+  const mock = await browser.mock(api("/api/settings"), { method: "get" });
   await mock.respond(body, { headers: { "Content-Type": "application/json" } });
   return mock;
 }
@@ -82,7 +84,7 @@ describe("admin page", () => {
 
   it("shows the field error for an exception with no reason, and sends nothing", async () => {
     await mockSettings();
-    const post = await browser.mock("**/api/exceptions", { method: "post" });
+    const post = await browser.mock(api("/api/exceptions"), { method: "post" });
     await post.respond({ ok: true }, { statusCode: 201 });
     await browser.url("/");
     await $("#standard").waitForExist();
@@ -98,7 +100,7 @@ describe("admin page", () => {
   it("shows the refusal reason when re-pinning is refused", async () => {
     await mockSettings();
     const reason = `Checksum mismatch: expected ${"0".repeat(64)}, got ${"1".repeat(64)}`;
-    const post = await browser.mock("**/api/standard", { method: "post" });
+    const post = await browser.mock(api("/api/standard"), { method: "post" });
     await post.respond({ error: reason }, { statusCode: 422 });
     await browser.url("/");
     await $("#standard").waitForExist();

@@ -71,21 +71,20 @@ function parsed(value) {
 
 /** @param {SettingsEnv} env */
 export async function readSettings(env) {
+  const all = async (/** @type {string} */ sql) => env.DB.prepare(sql).all();
   const [pin, loaded, owners, apps, repositories, exceptions, tokens, audit] = await Promise.all([
     readSetting(env, "standard"),
     loadStandard(env),
     readSetting(env, "owners"),
     readSetting(env, "apps"),
-    env.DB.prepare(
+    all(
       "SELECT name, expected_visibility AS expectedVisibility, accepted_record_sha AS acceptedRecordSha FROM repositories ORDER BY name",
-    ).all(),
-    env.DB.prepare(
-      'SELECT id, target, check_id AS "check", match, reason, created_at AS createdAt FROM exceptions ORDER BY id',
-    ).all(),
-    env.DB.prepare("SELECT token_id AS tokenId, name, purpose, repository FROM known_tokens ORDER BY name").all(),
-    env.DB.prepare(
+    ),
+    all('SELECT id, target, check_id AS "check", match, reason, created_at AS createdAt FROM exceptions ORDER BY id'),
+    all("SELECT token_id AS tokenId, name, purpose, repository FROM known_tokens ORDER BY name"),
+    all(
       "SELECT id, actor, key, from_value, to_value, changed_at, notified FROM settings_audit ORDER BY id DESC LIMIT 50",
-    ).all(),
+    ),
   ]);
   const version = /** @type {{ version?: unknown } | null} */ (pin)?.version;
   const pinned = typeof version === "string" ? version : null;

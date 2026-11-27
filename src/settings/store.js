@@ -1,15 +1,20 @@
 import { postDiscord } from "../alerts/discord.js";
 
-/** @typedef {{ DB: import("../lib/db.js").Database, OWNER_EMAIL?: string, DISCORD_WEBHOOK_URL?: string, ADMIN_HOST?: string }} SettingsEnv */
+/** @typedef {import("../lib/db.js").Database} Database */
+/** @typedef {{ DB: Database, OWNER_EMAIL?: string, DISCORD_WEBHOOK_URL?: string, ADMIN_HOST?: string }} SettingsEnv */
+
+const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
+// A post that crashes mid-flight leaves its claim behind; after this long another run may take it over.
+const CLAIM_EXPIRED = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-60 seconds')";
 
 /**
  * @param {{ OWNER_EMAIL?: string }} env
- * @param {string} email
- * @returns {string}
+ * @param {string | null | undefined} email
+ * @returns {"the owner" | "another Access user"}
  */
 export function describeActor(env, email) {
   const owner = env.OWNER_EMAIL?.trim().toLowerCase();
-  return owner && email.trim().toLowerCase() === owner ? "the owner" : "another Access user";
+  return owner && (email ?? "").trim().toLowerCase() === owner ? "the owner" : "another Access user";
 }
 
 /**
@@ -27,22 +32,39 @@ const serialise = value => (value === undefined ? null : JSON.stringify(value));
 
 /**
  * @param {SettingsEnv} env
- * @param {{ actor: string, key: string, from: unknown, to: unknown, apply: (db: import("../lib/db.js").Database) => import("../lib/db.js").Statement[] }} change
+ * @param {number[]} ids
+ * @param {boolean} posted
+ */
+async function settle(env, ids, posted) {
+  if (ids.length === 0) return;
+  const sql = posted
+    ? "UPDATE settings_audit SET notified = 1, claimed_at = NULL WHERE id = ?1"
+    : "UPDATE settings_audit SET claimed_at = NULL WHERE id = ?1";
+  try {
+    await env.DB.batch(ids.map(id => env.DB.prepare(sql).bind(id)));
+  } catch (error) {
+    console.error("Settings audit update failed", error instanceof Error ? error.message : error);
+  }
+}
+
+/**
+ * @param {SettingsEnv} env
+ * @param {{ email: string, key: string, from: unknown, to: unknown, apply: (db: Database) => import("../lib/db.js").Statement[] }} change
  * @param {typeof fetch} [fetchImpl]
  * @returns {Promise<{ notified: boolean }>}
  */
-export async function changeSetting(env, { actor, key, from, to, apply }, fetchImpl) {
+export async function changeSetting(env, { email, key, from, to, apply }, fetchImpl) {
+  const actor = describeActor(env, email);
   const statements = apply(env.DB);
   const results = await env.DB.batch([
     ...statements,
     env.DB.prepare(
-      "INSERT INTO settings_audit (actor, key, from_value, to_value) VALUES (?1, ?2, ?3, ?4) RETURNING id",
+      `INSERT INTO settings_audit (actor, key, from_value, to_value, claimed_at) VALUES (?1, ?2, ?3, ?4, ${NOW}) RETURNING id`,
     ).bind(actor, key, serialise(from), serialise(to)),
   ]);
   const [audit] = results[results.length - 1].results;
-  const id = /** @type {number} */ (audit.id);
   const notified = await postDiscord(env, announcement(env, actor, key), fetchImpl);
-  if (notified) await env.DB.prepare("UPDATE settings_audit SET notified = 1 WHERE id = ?1").bind(id).run();
+  await settle(env, [/** @type {number} */ (audit.id)], notified);
   return { notified };
 }
 
@@ -53,13 +75,21 @@ export async function changeSetting(env, { actor, key, from, to, apply }, fetchI
  */
 export async function retryUnnotified(env, fetchImpl) {
   const { results } = await env.DB.prepare(
-    "SELECT id, actor, key FROM settings_audit WHERE notified = 0 ORDER BY id",
+    `UPDATE settings_audit SET claimed_at = ${NOW}
+     WHERE notified = 0 AND (claimed_at IS NULL OR claimed_at < ${CLAIM_EXPIRED})
+     RETURNING id, actor, key`,
   ).all();
+  const rows = /** @type {{ id: number, actor: string, key: string }[]} */ (results).sort((a, b) => a.id - b.id);
   let posted = 0;
-  for (const row of /** @type {{ id: number, actor: string, key: string }[]} */ (results)) {
+  for (const row of rows) {
     if (!(await postDiscord(env, announcement(env, row.actor, row.key), fetchImpl))) break;
-    await env.DB.prepare("UPDATE settings_audit SET notified = 1 WHERE id = ?1").bind(row.id).run();
+    await settle(env, [row.id], true);
     posted++;
   }
+  await settle(
+    env,
+    rows.slice(posted).map(row => row.id),
+    false,
+  );
   return posted;
 }

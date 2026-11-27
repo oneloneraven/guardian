@@ -41,3 +41,12 @@ test("returns false when fetch throws, without throwing", async () => {
   });
   expect(ok).toBe(false);
 });
+
+test("gives up on a webhook that never answers", async () => {
+  /** @type {typeof fetch} */
+  const hang = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+    });
+  expect(await postDiscord({ DISCORD_WEBHOOK_URL: WEBHOOK }, "hello", hang, 10)).toBe(false);
+});

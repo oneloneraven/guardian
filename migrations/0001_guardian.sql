@@ -10,7 +10,8 @@ CREATE TABLE settings_audit (
   from_value TEXT,
   to_value TEXT,
   changed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  notified INTEGER NOT NULL DEFAULT 0 CHECK (notified IN (0, 1))
+  notified INTEGER NOT NULL DEFAULT 0 CHECK (notified IN (0, 1)),
+  claimed_at TEXT
 );
 
 CREATE INDEX settings_audit_unnotified ON settings_audit (id) WHERE notified = 0;

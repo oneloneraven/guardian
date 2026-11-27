@@ -59,5 +59,11 @@ test("an audit entry reads as one plain line", () => {
   expect(
     describeChange({ actor: "the owner", key: "repositories", to: { name: "engage", expectedVisibility: "public" } }),
   ).toBe("The owner set engage's expected visibility to public");
+  expect(describeChange({ actor: "the owner", key: "check-alerts", to: true })).toBe(
+    "The owner turned check alerts on",
+  );
+  expect(describeChange({ actor: "the owner", key: "check-alerts", to: false })).toBe(
+    "The owner turned check alerts off",
+  );
   expect(describeChange({ actor: "the owner", key: "something-new", to: 1 })).toBe("The owner changed something-new");
 });

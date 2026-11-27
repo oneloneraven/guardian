@@ -4,6 +4,7 @@ const SETTINGS = {
   standard: { version: "v1.18.0" },
   owners: ["raven"],
   apps: ["engage", "guardian"],
+  alerts: { enabled: false },
   repositories: [
     { name: "engage", expectedVisibility: "public", acceptedRecordSha: null },
     { name: "new-thing", expectedVisibility: null, acceptedRecordSha: null },
@@ -54,6 +55,7 @@ describe("admin page", () => {
     const titles = await $$("section h2").map(title => title.getText());
     expect(titles).toEqual([
       "Standard",
+      "Alerts",
       "Owners and Apps",
       "Repositories",
       "Exceptions",
@@ -73,6 +75,31 @@ describe("admin page", () => {
     await expect($('li[data-audit="2"]')).toHaveText(expect.stringContaining("The owner added an exception"));
     await expect($('li[data-audit="2"]')).toHaveText(expect.stringContaining("Not announced on Discord yet"));
     await expect($("#results .empty")).toHaveText("Not watching yet.");
+  });
+
+  it("the alerts switch shows its state and saves", async () => {
+    await mockSettings();
+    await browser.url("/");
+    await $("#alerts").waitForExist();
+    await expect($("#alerts .state")).toHaveText(
+      "Check alerts are off. Results are still recorded, and settings changes are always announced.",
+    );
+    const put = await browser.mock(api("/api/alerts"), { method: "put" });
+    await put.respond({ ok: true });
+    await mockSettings({ ...SETTINGS, alerts: { enabled: true } });
+    await $("button=Turn check alerts on").click();
+    await expect($("#alerts .saved")).toHaveText("Check alerts turned on.");
+    await expect($("#alerts .state")).toHaveText(
+      "Check alerts are on: failures, resolutions and things Guardian can't verify post to Discord.",
+    );
+    expect(put.calls).toHaveLength(1);
+    expect(put.calls[0].postData).toBe(JSON.stringify({ enabled: true }));
+
+    await $("button=Turn check alerts off").click();
+    await expect($("button=Turn them off")).toBeExisting();
+    await $("button=Keep them on").click();
+    await expect($("button=Turn check alerts off")).toBeExisting();
+    expect(put.calls).toHaveLength(1);
   });
 
   it("says why the pinned standard isn't in use", async () => {

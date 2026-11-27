@@ -184,6 +184,62 @@ function standardSection(page) {
   );
 }
 
+/** @param {Page} page */
+function alertsSection(page) {
+  const { enabled } = page.settings.alerts;
+  const failure = h("p", { class: "form-error", role: "alert" });
+  const wrapper = h("div", { class: "remove" });
+  /**
+   * @param {boolean} next
+   * @param {HTMLButtonElement} button
+   */
+  const change = async (next, button) => {
+    button.disabled = true;
+    failure.textContent = "";
+    try {
+      await api.putAlerts(next);
+      await page.reload("alerts", next ? "Check alerts turned on." : "Check alerts turned off.");
+    } catch (error) {
+      failure.textContent = error instanceof Error ? error.message : String(error);
+      button.disabled = false;
+    }
+  };
+  const ask = () => {
+    const keep = h("button", { type: "button", onclick: () => reset(true) }, "Keep them on");
+    const confirm = h(
+      "button",
+      { type: "button", class: "danger solid", onclick: () => change(false, confirm) },
+      "Turn them off",
+    );
+    wrapper.replaceChildren(
+      h("p", null, "Turn check alerts off? Failures will still be recorded, but nothing will post to Discord."),
+      h("div", { class: "actions" }, confirm, keep),
+      failure,
+    );
+    keep.focus();
+  };
+  const reset = (/** @type {boolean} */ focus) => {
+    const button = enabled
+      ? h("button", { type: "button", class: "danger", onclick: ask }, "Turn check alerts off")
+      : h("button", { type: "button", class: "primary", onclick: () => change(true, button) }, "Turn check alerts on");
+    wrapper.replaceChildren(button, failure);
+    if (focus) button.focus();
+  };
+  reset(false);
+  return section(
+    "alerts",
+    "Alerts",
+    h(
+      "p",
+      { class: enabled ? "state" : "state attention" },
+      enabled
+        ? "Check alerts are on: failures, resolutions and things Guardian can't verify post to Discord."
+        : "Check alerts are off. Results are still recorded, and settings changes are always announced.",
+    ),
+    wrapper,
+  );
+}
+
 /**
  * @param {Page} page
  * @param {"owners" | "apps"} key
@@ -411,6 +467,7 @@ function auditSection(page) {
 export function renderSettings(root, page) {
   root.replaceChildren(
     standardSection(page),
+    alertsSection(page),
     section(
       "owners-and-apps",
       "Owners and Apps",

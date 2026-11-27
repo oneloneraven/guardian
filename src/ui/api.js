@@ -4,7 +4,7 @@
  * @typedef {{ id: number, target: string, check: string, match: string | null, reason: string, createdAt: string }} Exception
  * @typedef {{ tokenId: string, name: string, purpose: string, repository: string | null }} KnownToken
  * @typedef {{ id: number, actor: string, key: string, from: unknown, to: unknown, changedAt: string, notified: boolean }} AuditEntry
- * @typedef {{ standard: StandardState, owners: string[], apps: string[], repositories: Repository[], exceptions: Exception[], tokens: KnownToken[], audit: AuditEntry[] }} Settings
+ * @typedef {{ standard: StandardState, owners: string[], apps: string[], alerts: { enabled: boolean }, repositories: Repository[], exceptions: Exception[], tokens: KnownToken[], audit: AuditEntry[] }} Settings
  */
 
 export class ApiError extends Error {}
@@ -78,3 +78,6 @@ export const addToken = token => request("POST", "/api/tokens", token);
 
 /** @param {string} tokenId */
 export const removeToken = tokenId => request("DELETE", `/api/tokens/${encodeURIComponent(tokenId)}`);
+
+/** @param {boolean} enabled */
+export const putAlerts = enabled => request("PUT", "/api/alerts", { enabled });

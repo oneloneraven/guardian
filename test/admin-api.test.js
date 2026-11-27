@@ -298,3 +298,18 @@ test("an unexpected failure answers a JSON 500 that isn't cached", async () => {
   expect(response.headers.get("Cache-Control")).toBe("no-store");
   expect(await response.json()).toEqual({ error: "Something went wrong" });
 });
+
+test("a mutation from the page's own origin is accepted, port included", async () => {
+  const request = new Request("http://localhost:4173/api/owners", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Origin: "http://localhost:4173" },
+    body: JSON.stringify({ values: ["raven"] }),
+  });
+  expect((await send(request)).status).toBe(200);
+  const elsewhere = new Request("http://localhost:4173/api/owners", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+    body: JSON.stringify({ values: ["raven"] }),
+  });
+  expect((await send(elsewhere)).status).toBe(403);
+});

@@ -25,3 +25,4 @@ Last checked against both lists on 2026-11-27.
 | wrangler | Deploying and previewing the Worker | Cloudflare, Inc. | No | Allowed |
 | `@cloudflare/vitest-plugin` | Running unit tests against D1 in the Workers runtime | Cloudflare, Inc. | No | Allowed |
 | Discord | Posting Guardian's alerts and settings changes to the owner's channel | Discord Inc. | No | Allowed |
+| Fontsource (`@fontsource-variable/bricolage-grotesque`, `@fontsource-variable/atkinson-hyperlegible-next`) | Self-hosting the admin page's typefaces | Fontsource project (independent open source); the typefaces by Mathieu Triay and the Braille Institute | No | Allowed |

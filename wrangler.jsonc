@@ -93,7 +93,8 @@
       "vars": {
         "APP_ENV": "e2e",
         "ADMIN_ACCESS_CHECK": "off",
-        "OWNER_EMAIL": "dev@localhost"
+        "OWNER_EMAIL": "dev@localhost",
+        "ADMIN_HOST": "localhost"
       },
       "assets": {
         "directory": "./dist",

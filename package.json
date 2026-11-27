@@ -20,6 +20,8 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@cloudflare/vitest-plugin": "^1.9.2",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@vitest/coverage-v8": "^5.0.5",
     "@wdio/cli": "^10.1.0",
     "@wdio/globals": "^10.1.0",

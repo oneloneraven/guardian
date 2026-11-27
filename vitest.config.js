@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 const migrations = await readD1Migrations("./migrations");
 
 const NODE_TESTS = [
-  "test/greeting.test.js",
+  "test/ui-*.test.js",
   "test/lib/**/*.test.js",
   "test/worker.test.js",
   "test/wrangler-config.test.js",

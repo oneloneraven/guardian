@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "modules": ["core", "js-toolchain", "web-app", "cloudflare-tofu-base", "cloudflare-opentofu"],
+  "visibility": "public",
+  "flags": {
+    "admin": true,
+    "beta": false,
+    "d1": true,
+    "owner_org": true,
+    "turnstile": false,
+    "zone_shared": true
+  },
+  "skipped": {
+    "manual:cloudflare-opentofu:2": "The zone is shared; DNSSEC belongs to the stack that manages it",
+    "manual:cloudflare-opentofu:4": "Guardian's secrets are set on the Worker by the owner, never in GitHub",
+    "manual:cloudflare-opentofu:6": "No Turnstile",
+    "manual:cloudflare-opentofu:7": "No Turnstile"
+  },
+  "exceptions": []
+}

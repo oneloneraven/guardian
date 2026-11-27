@@ -64,7 +64,7 @@ export function whenHolds(when, flags) {
 }
 
 /**
- * @param {{ standard: any, record: AcceptedRecord | null, repo: string, owner: string, visibility: "public" | "private", plan: string }} input
+ * @param {{ standard: any, record: AcceptedRecord | null, repo: string, owner: string, visibility: "public" | "private", plan: string | null }} input
  * @returns {Expected}
  */
 export function expectedFor({ standard, record, repo, owner, visibility, plan }) {

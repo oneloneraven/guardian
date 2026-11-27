@@ -10,9 +10,9 @@ test("health reports the environment and release", async () => {
   expect(await response.json()).toEqual({ ok: true, environment: "test", version: "v1.2.3" });
 });
 
-test("everything else is served from static assets", async () => {
+test("the API host doesn't serve the admin page", async () => {
   const response = await worker.fetch(new Request("https://example.test/"), env);
-  expect(await response.text()).toBe("asset");
+  expect(response.status).toBe(404);
 });
 
 test("the admin host answers 404 to anyone the owner check refuses", async () => {
@@ -22,10 +22,10 @@ test("the admin host answers 404 to anyone the owner check refuses", async () =>
   expect(response.headers.get("Cache-Control")).toBe("no-store");
 });
 
-test("the admin host answers a request the owner check accepts", async () => {
+test("the admin host serves the page to a request the owner check accepts", async () => {
   const response = await worker.fetch(new Request("https://admin.example.test/"), admin);
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ ok: true, admin: true });
+  expect(await response.text()).toBe("asset");
 });
 
 test("without an admin host configured, no request is treated as admin", async () => {
@@ -33,7 +33,7 @@ test("without an admin host configured, no request is treated as admin", async (
     ...env,
     ADMIN_ACCESS_CHECK: "off",
   });
-  expect(await response.text()).toBe("asset");
+  expect(response.status).toBe(404);
 });
 
 test("the API host never serves /api, other than health", async () => {

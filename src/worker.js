@@ -21,9 +21,8 @@ export default {
       const identity = await adminIdentity(request, env);
       if (!identity) return notFound();
       if (pathname.startsWith("/api/")) return routeAdmin(request, env, identity);
-      return Response.json({ ok: true, admin: true }, { headers: { "Cache-Control": "no-store" } });
+      return env.ASSETS.fetch(request);
     }
-    if (pathname.startsWith("/api/")) return notFound();
-    return env.ASSETS.fetch(request);
+    return notFound();
   },
 };

@@ -1,9 +1,9 @@
 import { parseRecord } from "./expected.js";
+import { codes, hookHost, list, outcomes, settle, unreadable } from "./result.js";
 
 /**
  * @typedef {import("../github/reader.js").Reader} Reader
  * @typedef {import("./expected.js").Expected} Expected
- * @typedef {{ status: "pass" | "fail" | "unknown" | "skipped", reason: string, link: string | null }} Result
  * @typedef {{
  *   read: Reader,
  *   repo: string,
@@ -15,32 +15,19 @@ import { parseRecord } from "./expected.js";
  *   liveRecord: { sha: string, text: string } | null,
  *   exempt: (match: string) => string | null,
  * }} RepoContext
- * @typedef {{ pass: (reason: string) => Result, fail: (reason: string) => Result, unknown: (reason: string) => Result }} Outcomes
- * @typedef {{ items: any[] } | { unreadable: string }} Listing
+ * @typedef {import("./result.js").Result} Result
+ * @typedef {import("./result.js").Outcomes} Outcomes
+ * @typedef {import("./result.js").Listing} Listing
  */
 
 const RECORD_PATH = ".bootstrap/record.json";
-
-/**
- * @param {RepoContext} ctx
- * @param {string} suffix
- * @returns {Outcomes}
- */
-function outcomes(ctx, suffix) {
-  const link = `https://github.com/${ctx.repo}${suffix}`;
-  return {
-    pass: reason => ({ status: "pass", reason, link }),
-    fail: reason => ({ status: "fail", reason, link }),
-    unknown: reason => ({ status: "unknown", reason, link }),
-  };
-}
 
 /**
  * @param {string} suffix
  * @param {(ctx: RepoContext, out: Outcomes) => Promise<Result>} run
  */
 function kind(suffix, run) {
-  return /** @param {RepoContext} ctx */ ctx => run(ctx, outcomes(ctx, suffix));
+  return /** @param {RepoContext} ctx */ ctx => run(ctx, outcomes(`https://github.com/${ctx.repo}${suffix}`));
 }
 
 /**
@@ -52,46 +39,6 @@ function expectingKind(suffix, run) {
     "unknown" in ctx.expected ? Promise.resolve(out.unknown(ctx.expected.unknown)) : run(ctx, out, ctx.expected),
   );
 }
-
-/**
- * @param {string} what
- * @param {number} status
- * @param {string} permission
- */
-function unreadable(what, status, permission) {
-  if (status === 403) return `Can't read ${what}: the GitHub App needs the \`${permission}\` permission`;
-  return `Couldn't read ${what} (${status === 0 ? "no answer" : `HTTP ${status}`})`;
-}
-
-/** @param {string} path */
-const paged = path => `${path}${path.includes("?") ? "&" : "?"}per_page=100`;
-
-/**
- * @param {Reader} read
- * @param {string} path
- * @param {string} what
- * @param {string} permission
- * @returns {Promise<Listing>}
- */
-async function list(read, path, what, permission) {
-  const { status, items } = await read.all(paged(path));
-  return status === 200 ? { items } : { unreadable: unreadable(what, status, permission) };
-}
-
-/**
- * @param {Outcomes} out
- * @param {string[]} problems
- * @param {string[]} unreadables
- * @param {string} passReason
- */
-function settle(out, problems, unreadables, passReason) {
-  if (problems.length > 0) return out.fail(problems.join("; "));
-  if (unreadables.length > 0) return out.unknown(unreadables.join("; "));
-  return out.pass(passReason);
-}
-
-/** @param {string[]} values */
-const codes = values => values.map(value => `\`${value}\``).join(", ");
 
 /**
  * @param {any} ruleset
@@ -167,15 +114,6 @@ const deployKeys = kind("/settings/keys", async (ctx, out) => {
   if (keys.items.length === 0) return out.pass("No deploy keys");
   return out.fail(keys.items.map(key => `Deploy key \`${key.title}\` added`).join("; "));
 });
-
-/** @param {any} hook */
-function hookHost(hook) {
-  try {
-    return new URL(hook.config?.url).hostname;
-  } catch {
-    return null;
-  }
-}
 
 const webhooks = kind("/settings/hooks", async (ctx, out) => {
   const hooks = await list(ctx.read, `/repos/${ctx.repo}/hooks`, "the webhooks", "Webhooks read");

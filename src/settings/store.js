@@ -28,7 +28,7 @@ function announcement(env, actor, key) {
 }
 
 /** @param {unknown} value */
-const serialise = value => (value === undefined ? null : JSON.stringify(value));
+const serialise = value => (value == null ? null : JSON.stringify(value));
 
 /**
  * @param {SettingsEnv} env

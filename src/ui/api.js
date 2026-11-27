@@ -12,6 +12,7 @@ export class ApiError extends Error {}
 const SIGNED_OUT = "You're not signed in to Guardian any more: reload the page to sign in again.";
 const UNREACHABLE = "Couldn't reach Guardian: check your connection and try again.";
 const FAILED = "Guardian couldn't do that just now: try again in a minute.";
+const GONE = "That's already gone: reload the page.";
 
 /**
  * @param {string} method
@@ -25,6 +26,7 @@ async function request(method, path, body) {
   try {
     response = await fetch(path, {
       method,
+      redirect: "manual",
       ...(body !== undefined && { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     });
   } catch {
@@ -36,7 +38,10 @@ async function request(method, path, body) {
     payload = await response.json();
   } catch {}
   if (response.ok) return payload;
-  if (response.status === 403 || response.status === 404) throw new ApiError(SIGNED_OUT);
+  if (response.status === 404 && payload?.error) throw new ApiError(GONE);
+  if (response.type === "opaqueredirect" || response.status === 403 || response.status === 404) {
+    throw new ApiError(SIGNED_OUT);
+  }
   if ((response.status === 400 || response.status === 409 || response.status === 422) && payload?.error) {
     throw new ApiError(String(payload.error));
   }

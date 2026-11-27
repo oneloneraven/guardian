@@ -112,6 +112,14 @@ describe("admin page", () => {
     const target = `e2e-${browserName()}`;
     await browser.url("/");
     await $("#standard").waitForExist();
+    await browser.execute(async leftover => {
+      const { exceptions } = await (await fetch("/api/settings")).json();
+      for (const exception of exceptions.filter(e => e.target === leftover)) {
+        await fetch(`/api/exceptions/${exception.id}`, { method: "DELETE" });
+      }
+    }, target);
+    await browser.refresh();
+    await $("#standard").waitForExist();
     await $("#exception-target").setValue(target);
     await $("#exception-check").setValue("visibility");
     await $("#exception-reason").setValue("Checked by the e2e suite");

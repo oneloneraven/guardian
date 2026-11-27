@@ -19,9 +19,10 @@ async function load(section, message) {
       /** @type {HTMLElement | null | undefined} */ (target?.querySelector("h2"))?.focus();
     }
   } catch (error) {
-    root.replaceChildren(
-      h("p", { class: "form-error", role: "alert" }, error instanceof Error ? error.message : String(error)),
-    );
+    const text = error instanceof Error ? error.message : String(error);
+    const status = section ? root.querySelector(`#${section} .saved`) : null;
+    if (status) status.textContent = `${message} The page couldn't refresh: ${text}`;
+    else root.replaceChildren(h("p", { class: "form-error", role: "alert" }, text));
   }
 }
 

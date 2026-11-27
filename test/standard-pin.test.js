@@ -166,3 +166,49 @@ test("loadStandard is unknown when the stored copy no longer matches its checksu
   await env.DB.prepare("UPDATE standard SET body = '{}'").run();
   expect(await loadStandard(base)).toEqual({ unknown: "Pinned standard fails its checksum" });
 });
+
+test("loadStandard is unknown when the pin itself is unreadable, and a new pin still works", async () => {
+  await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('standard', 'not json')").run();
+  expect(await loadStandard(base)).toEqual({ unknown: "Pinned standard unreadable" });
+  const { fetchImpl } = github({ [assetUrl("v1.18.0")]: real });
+  expect(await pinStandard(base, { version: "v1.18.0", sha256: REAL_SHA, email: OWNER }, fetchImpl)).toEqual({
+    ok: true,
+  });
+  expect(await loadStandard(base)).toMatchObject({ version: "v1.18.0" });
+});
+
+test("a failure to save is a refusal, not a crash", async () => {
+  const db = {
+    prepare: (/** @type {string} */ sql) => env.DB.prepare(sql),
+    batch: () => Promise.reject(new Error("D1 unavailable")),
+  };
+  const { fetchImpl } = github({ [assetUrl("v1.18.0")]: real });
+  const result = await pinStandard(
+    { ...base, DB: /** @type {any} */ (db) },
+    { version: "v1.18.0", sha256: REAL_SHA, email: OWNER },
+    fetchImpl,
+  );
+  expect(result).toEqual({ ok: false, reason: "Couldn't save the standard" });
+});
+
+test("refuses an asset over 1 MB", async () => {
+  const big = "x".repeat(1_000_001);
+  const { fetchImpl } = github({ [assetUrl("v1.18.0")]: big });
+  const result = await pinStandard(base, { version: "v1.18.0", sha256: await sha256(big), email: OWNER }, fetchImpl);
+  expect(result).toEqual({ ok: false, reason: "The asset is too large" });
+  expect(await counts()).toEqual({ standard: 0, settings: 0, audit: 0 });
+});
+
+test("refuses a version or checksum that isn't a string", async () => {
+  const { fetchImpl, requested } = github({});
+  const asAny = (/** @type {unknown} */ value) => /** @type {any} */ (value);
+  expect(await pinStandard(base, { version: asAny(1), sha256: REAL_SHA, email: OWNER }, fetchImpl)).toEqual({
+    ok: false,
+    reason: "version must look like v1.2.3",
+  });
+  expect(await pinStandard(base, { version: "v1.18.0", sha256: asAny(null), email: OWNER }, fetchImpl)).toEqual({
+    ok: false,
+    reason: "sha256 must be 64 hexadecimal characters",
+  });
+  expect(requested).toEqual([]);
+});

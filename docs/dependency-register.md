@@ -8,7 +8,7 @@ and its
 (ADR-0002 (in the vault)). A PR
 that adds a dependency or vendor adds its row.
 
-Last checked against both lists on 2026-10-28.
+Last checked against both lists on 2026-11-27.
 
 | Dependency or vendor | Used for | Maintainer | On a list? | Decision |
 |---|---|---|---|---|
@@ -23,3 +23,5 @@ Last checked against both lists on 2026-10-28.
 | OpenTofu | Managing the zone's DNS and settings as code | OpenTofu project (Linux Foundation) | No | Allowed. Chosen over Terraform, whose owner IBM is a No Tech for Apartheid target. |
 | Cloudflare (hosting, DNS, R2) | Hosting the Worker, DNS and the infrastructure state bucket | Cloudflare, Inc. | No | Allowed |
 | wrangler | Deploying and previewing the Worker | Cloudflare, Inc. | No | Allowed |
+| `@cloudflare/vitest-plugin` | Running unit tests against D1 in the Workers runtime | Cloudflare, Inc. | No | Allowed |
+| Discord | Posting Guardian's alerts and settings changes to the owner's channel | Discord Inc. | No | Allowed |

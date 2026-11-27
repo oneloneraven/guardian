@@ -1,5 +1,5 @@
 import { changeSetting } from "../settings/store.js";
-import { pinStandard } from "../standard/pin.js";
+import { loadStandard, pinStandard } from "../standard/pin.js";
 
 /** @typedef {import("../settings/store.js").SettingsEnv} SettingsEnv */
 /** @typedef {{ env: SettingsEnv, email: string, fetchImpl?: typeof fetch }} Context */
@@ -71,8 +71,9 @@ function parsed(value) {
 
 /** @param {SettingsEnv} env */
 export async function readSettings(env) {
-  const [pin, owners, apps, repositories, exceptions, tokens, audit] = await Promise.all([
+  const [pin, loaded, owners, apps, repositories, exceptions, tokens, audit] = await Promise.all([
     readSetting(env, "standard"),
+    loadStandard(env),
     readSetting(env, "owners"),
     readSetting(env, "apps"),
     env.DB.prepare(
@@ -87,8 +88,13 @@ export async function readSettings(env) {
     ).all(),
   ]);
   const version = /** @type {{ version?: unknown } | null} */ (pin)?.version;
+  const pinned = typeof version === "string" ? version : null;
+  /** @type {{ version: string | null, unknown?: string } | null} */
+  let standard = null;
+  if (!("unknown" in loaded)) standard = { version: loaded.version };
+  else if (loaded.unknown !== "No standard pinned") standard = { version: pinned, unknown: loaded.unknown };
   return {
-    standard: typeof version === "string" ? { version } : null,
+    standard,
     owners: list(owners),
     apps: list(apps),
     repositories: repositories.results,
@@ -116,7 +122,12 @@ export async function putNames({ env, email, fetchImpl }, key, body) {
   if (!Array.isArray(values) || values.length > 100 || !values.every(v => typeof v === "string" && LOGIN.test(v))) {
     throw new Invalid("values must be GitHub logins or App slugs");
   }
-  const to = [...new Set(/** @type {string[]} */ (values))];
+  /** @type {Map<string, string>} */
+  const unique = new Map();
+  for (const value of /** @type {string[]} */ (values)) {
+    if (!unique.has(value.toLowerCase())) unique.set(value.toLowerCase(), value);
+  }
+  const to = [...unique.values()];
   await changeSetting(
     env,
     {
@@ -239,21 +250,26 @@ export async function postToken({ env, email, fetchImpl }, body) {
   if (await env.DB.prepare("SELECT 1 FROM known_tokens WHERE token_id = ?1").bind(tokenId).first()) {
     return json(409, { error: "tokenId is already known" });
   }
-  await changeSetting(
-    env,
-    {
-      email,
-      key: "tokens",
-      from: null,
-      to: { tokenId, name, purpose, repository },
-      apply: db => [
-        db
-          .prepare("INSERT INTO known_tokens (token_id, name, purpose, repository) VALUES (?1, ?2, ?3, ?4)")
-          .bind(tokenId, name, purpose, repository),
-      ],
-    },
-    fetchImpl,
-  );
+  try {
+    await changeSetting(
+      env,
+      {
+        email,
+        key: "tokens",
+        from: null,
+        to: { tokenId, name, purpose, repository },
+        apply: db => [
+          db
+            .prepare("INSERT INTO known_tokens (token_id, name, purpose, repository) VALUES (?1, ?2, ?3, ?4)")
+            .bind(tokenId, name, purpose, repository),
+        ],
+      },
+      fetchImpl,
+    );
+  } catch (error) {
+    if (error instanceof Error && /UNIQUE/.test(error.message)) return json(409, { error: "tokenId is already known" });
+    throw error;
+  }
   return json(201, { ok: true });
 }
 

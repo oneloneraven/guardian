@@ -1,5 +1,5 @@
 # Local Worker secrets for `wrangler dev`. Copy to .dev.vars (gitignored); never commit real values.
-# Admin section: the Access check is off in development, and OWNER_EMAIL is checked in every other environment. Set ADMIN_HOST=localhost to serve the admin section locally.
+# Admin section: the Access check is off in development, and OWNER_EMAIL is checked in every other environment. Set ADMIN_HOST=localhost to serve the admin section locally. With the check off, you are dev@localhost, so OWNER_EMAIL=dev@localhost makes you the owner.
 ADMIN_ACCESS_CHECK=off
 #ADMIN_HOST=localhost
-OWNER_EMAIL=
+OWNER_EMAIL=dev@localhost

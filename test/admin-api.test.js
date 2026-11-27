@@ -252,3 +252,49 @@ test("an unknown route answers 404 and a wrong method 405", async () => {
   expect((await send(call("GET", "/api/nowhere"))).status).toBe(404);
   expect((await send(call("DELETE", "/api/settings"))).status).toBe(405);
 });
+
+test("owners and Apps are de-duplicated without regard to case, keeping the first spelling", async () => {
+  expect((await send(call("PUT", "/api/owners", { values: ["Raven", "raven", "nix"] }))).status).toBe(200);
+  expect((await (await send(call("GET", "/api/settings"))).json()).owners).toEqual(["Raven", "nix"]);
+});
+
+test("the settings show why a pinned standard isn't in use", async () => {
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value) VALUES ('standard', '{"version":"v1.18.0","sha256":"${REAL_SHA}"}')`,
+  ).run();
+  expect((await (await send(call("GET", "/api/settings"))).json()).standard).toEqual({
+    version: "v1.18.0",
+    unknown: "Pinned standard missing",
+  });
+});
+
+test("a duplicate token that slips past the check answers 409, not 500", async () => {
+  const db = {
+    prepare: (/** @type {string} */ sql) =>
+      sql.startsWith("SELECT 1 FROM known_tokens")
+        ? { bind: () => ({ first: async () => null }) }
+        : env.DB.prepare(sql),
+    batch: (/** @type {any[]} */ statements) => env.DB.batch(statements),
+  };
+  await env.DB.prepare("INSERT INTO known_tokens (token_id, name, purpose) VALUES ('abc123', 'n', 'p')").run();
+  const response = await routeAdmin(
+    call("POST", "/api/tokens", { tokenId: "abc123", name: "n", purpose: "p" }),
+    { ...base, DB: /** @type {any} */ (db) },
+    owner,
+    outbound().fetchImpl,
+  );
+  expect(response.status).toBe(409);
+});
+
+test("an unexpected failure answers a JSON 500 that isn't cached", async () => {
+  const db = {
+    prepare: () => {
+      throw new Error("D1 unavailable");
+    },
+    batch: () => Promise.reject(new Error("D1 unavailable")),
+  };
+  const response = await routeAdmin(call("GET", "/api/settings"), { ...base, DB: /** @type {any} */ (db) }, owner);
+  expect(response.status).toBe(500);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(await response.json()).toEqual({ error: "Something went wrong" });
+});

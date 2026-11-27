@@ -88,7 +88,8 @@ export async function routeAdmin(request, env, identity, fetchImpl) {
       return await handler({ env, email: identity.email, fetchImpl }, body, decode(match[1] ?? ""));
     } catch (error) {
       if (error instanceof Invalid) return json(400, { error: error.message });
-      throw error;
+      console.error("Admin API failed", request.method, pathname, error instanceof Error ? error.message : error);
+      return json(500, { error: "Something went wrong" });
     }
   }
   return json(404, { error: "Not found" });

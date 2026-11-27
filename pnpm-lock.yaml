@@ -11,18 +11,21 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.15
         version: 2.6.8
+      '@cloudflare/vitest-plugin':
+        specifier: ^1.9.2
+        version: 1.9.2(@types/node@26.6.6)(vitest@5.1.1)
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.1.1(vitest@5.1.1)
       '@wdio/cli':
         specifier: ^10.1.0
-        version: 10.2.0(@types/node@26.6.6)(bare-buffer@3.7.3)(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))
+        version: 10.2.0(@types/node@26.6.6)(bare-buffer@3.7.3)(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))
       '@wdio/globals':
         specifier: ^10.1.0
-        version: 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(webdriverio@10.2.0(bare-buffer@3.7.3))
+        version: 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/local-runner':
         specifier: ^10.1.0
-        version: 10.2.0(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))
+        version: 10.2.0(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/mocha-framework':
         specifier: ^10.1.0
         version: 10.2.0
@@ -43,7 +46,7 @@ importers:
         version: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
       webdriverio:
         specifier: ^10.1.0
-        version: 10.2.0(bare-buffer@3.7.3)
+        version: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
       wrangler:
         specifier: ^4.151.1
         version: 4.167.0(@types/node@26.6.6)(vitest@5.1.1)
@@ -156,6 +159,11 @@ packages:
     peerDependenciesMeta:
       workerd:
         optional: true
+
+  '@cloudflare/vitest-plugin@1.9.2':
+    resolution: {integrity: sha512-5kvabPtAcJNg/VMZyJ6M3dczw02eG8miWXOst1xMQLqKG9ItWYtzeln/q9+FV0T57Gg8ftLXjZS9mzoYfnxBdQ==}
+    peerDependencies:
+      vitest: ^4.1.0 || ^5.0.0
 
   '@cloudflare/workerd-darwin-64@1.20261123.1':
     resolution: {integrity: sha512-eHJEySbW8swWiAYYaOn4LdtHQEPfug9oetPATkaXbsYxjsMX+nfyJ16//2ghXws8npxA+ZJkt5RYpimFfVdgkQ==}
@@ -1363,6 +1371,9 @@ packages:
     resolution: {integrity: sha512-d1uM8k5UZEyPza1n/MG3ko8nKupKN0KJpFsipgPcgaCCvV+IqIfJ+NzTjetlLM+UcXZx3+cLrNr76+eAO7G1Mw==}
     engines: {node: '>=8'}
 
+  cjs-module-lexer@1.2.3:
+    resolution: {integrity: sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ==}
+
   cli-width@4.1.0:
     resolution: {integrity: sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ==}
     engines: {node: '>= 12'}
@@ -1989,6 +2000,15 @@ packages:
 
   miniflare@5.20261123.0-beta:
     resolution: {integrity: sha512-ObCOK12WQjUw2yWJH8olMzDSkXaj8xlmZkfJp0MU7y/gnvfv9cBGj9o075ywFeBCBoKopRy8J9Ci3Sh4cquoxg==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      kerberos: ^2.0.0
+    peerDependenciesMeta:
+      kerberos:
+        optional: true
+
+  miniflare@5.20261123.1-beta:
+    resolution: {integrity: sha512-o2a+xv6Ug144FgUJm7ciSWMiI7R0OH0svGCfqb1+6l9cUfZebc6YMWIK43PeyzWr3x6BLq2j4O9i8BsKk055oA==}
     engines: {node: '>=22.12.0'}
     peerDependencies:
       kerberos: ^2.0.0
@@ -2648,6 +2668,9 @@ packages:
     resolution: {integrity: sha512-dSvYKdvLsAHCDqPOhIwk/q5CvuWtTB3Dgpoe0uVEFjTzIOAmsQpprX25InCvrvJsirEbu1OHyy67n/kAj1Sw/w==}
     engines: {node: '>=18'}
 
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
+
 snapshots:
 
   '@babel/code-frame@7.29.7':
@@ -2721,6 +2744,19 @@ snapshots:
       unenv: 2.0.0-rc.24
     optionalDependencies:
       workerd: 1.20261123.1
+
+  '@cloudflare/vitest-plugin@1.9.2(@types/node@26.6.6)(vitest@5.1.1)':
+    dependencies:
+      cjs-module-lexer: 1.2.3
+      esbuild: 0.28.2
+      miniflare: 5.20261123.1-beta(@types/node@26.6.6)
+      vitest: 5.1.1(@types/node@26.6.6)(@vitest/coverage-v8@5.1.1)(vite@8.3.8(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+      zod: 4.6.6
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - kerberos
+      - utf-8-validate
 
   '@cloudflare/workerd-darwin-64@1.20261123.1':
     optional: true
@@ -3385,14 +3421,14 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.2.0
 
-  '@wdio/cli@10.2.0(@types/node@26.6.6)(bare-buffer@3.7.3)(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))':
+  '@wdio/cli@10.2.0(@types/node@26.6.6)(bare-buffer@3.7.3)(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))':
     dependencies:
       '@vitest/snapshot': 5.1.1
       '@wdio/config': 10.2.0
-      '@wdio/globals': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/globals': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/logger': 10.2.0
       '@wdio/protocols': 10.2.0
-      '@wdio/session': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/session': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/types': 10.2.0
       '@wdio/utils': 10.2.0
       async-exit-hook: 2.0.1
@@ -3407,7 +3443,7 @@ snapshots:
       minimatch: 11.0.9
       read-package-up: 12.0.0
       tsx: 4.23.15
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
       yargs: 18.2.0
     transitivePeerDependencies:
       - '@types/node'
@@ -3451,22 +3487,22 @@ snapshots:
       '@wdio/types': 10.2.0
       chalk: 6.0.1
 
-  '@wdio/globals@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(webdriverio@10.2.0(bare-buffer@3.7.3))':
+  '@wdio/globals@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))':
     dependencies:
-      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3))
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
 
-  '@wdio/local-runner@10.2.0(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))':
+  '@wdio/local-runner@10.2.0(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))':
     dependencies:
       '@types/node': 22.20.5
       '@types/split2': 4.2.3
       '@wdio/display-server': 10.2.0
       '@wdio/logger': 10.2.0
       '@wdio/repl': 10.2.0
-      '@wdio/runner': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/runner': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/types': 10.2.0
       exit-hook: 5.1.0
-      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3))
+      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       split2: 4.2.0
       stream-buffers: 3.0.3
     transitivePeerDependencies:
@@ -3516,20 +3552,20 @@ snapshots:
       diff: 9.0.0
       object-inspect: 1.14.0
 
-  '@wdio/runner@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))':
+  '@wdio/runner@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))':
     dependencies:
       '@types/node': 22.20.5
       '@wdio/config': 10.2.0
       '@wdio/dot-reporter': 10.2.0
-      '@wdio/globals': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/globals': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/logger': 10.2.0
-      '@wdio/session': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/session': 10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/types': 10.2.0
       '@wdio/utils': 10.2.0
       deepmerge-ts: 8.0.2
-      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3))
-      webdriver: 10.2.0
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
+      webdriver: 10.2.0(supports-color@8.1.1)
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
     transitivePeerDependencies:
       - '@wdio/electron-service'
       - '@wdio/visual-service'
@@ -3542,13 +3578,13 @@ snapshots:
       - utf-8-validate
       - yauzl
 
-  '@wdio/session@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3))':
+  '@wdio/session@10.2.0(expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)))(tsx@4.23.15)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))':
     dependencies:
       '@types/node': 22.20.5
       '@wdio/config': 10.2.0
       '@wdio/display-server': 10.2.0
       '@wdio/logger': 10.2.0
-      '@wdio/snapshot': 10.2.0(webdriverio@10.2.0(bare-buffer@3.7.3))
+      '@wdio/snapshot': 10.2.0(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       '@wdio/types': 10.2.0
       '@wdio/utils': 10.2.0
       acorn: 8.19.0
@@ -3556,20 +3592,20 @@ snapshots:
       image-size: 2.1.0
       picomatch: 4.0.7
       semver: 7.8.6
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
       yargs: 18.2.0
     optionalDependencies:
-      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3))
+      expect-webdriverio: 8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))
       tsx: 4.23.15
     transitivePeerDependencies:
       - proxy-agent
       - supports-color
       - yauzl
 
-  '@wdio/snapshot@10.2.0(webdriverio@10.2.0(bare-buffer@3.7.3))':
+  '@wdio/snapshot@10.2.0(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1))':
     dependencies:
       '@wdio/utils': 10.2.0
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
     transitivePeerDependencies:
       - proxy-agent
       - supports-color
@@ -3779,6 +3815,8 @@ snapshots:
       readdirp: 5.1.1
 
   ci-info@4.5.0: {}
+
+  cjs-module-lexer@1.2.3: {}
 
   cli-width@4.1.0: {}
 
@@ -4043,13 +4081,13 @@ snapshots:
 
   expect-type@1.4.0: {}
 
-  expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)):
+  expect-webdriverio@8.1.0(@wdio/types@10.2.0)(webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)):
     dependencies:
       '@vitest/snapshot': 5.1.1
       '@wdio/types': 10.2.0
       expect: 30.5.2
       jest-matcher-utils: 30.5.2
-      webdriverio: 10.2.0(bare-buffer@3.7.3)
+      webdriverio: 10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1)
 
   expect@30.5.2:
     dependencies:
@@ -4186,7 +4224,7 @@ snapshots:
       domutils: 3.2.2
       entities: 7.0.1
 
-  https-proxy-agent@9.1.0:
+  https-proxy-agent@9.1.0(supports-color@8.1.1):
     dependencies:
       agent-base: 9.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -4406,6 +4444,19 @@ snapshots:
       mime-db: 1.52.0
 
   miniflare@5.20261123.0-beta(@types/node@26.6.6):
+    dependencies:
+      '@cspotcode/source-map-support': 0.8.1
+      sharp: 0.35.5(@types/node@26.6.6)
+      undici: 7.30.2
+      workerd: 1.20261123.1
+      ws: 8.21.0
+      youch: 4.1.0-beta.10
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+
+  miniflare@5.20261123.1-beta(@types/node@26.6.6):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.6)
@@ -4934,7 +4985,7 @@ snapshots:
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
-  webdriver@10.2.0:
+  webdriver@10.2.0(supports-color@8.1.1):
     dependencies:
       '@types/node': 22.20.5
       '@types/ws': 8.18.2
@@ -4944,7 +4995,7 @@ snapshots:
       '@wdio/types': 10.2.0
       '@wdio/utils': 10.2.0
       deepmerge-ts: 8.0.2
-      https-proxy-agent: 9.1.0
+      https-proxy-agent: 9.1.0(supports-color@8.1.1)
       undici: 8.13.1
       ws: 8.23.0
     transitivePeerDependencies:
@@ -4955,7 +5006,7 @@ snapshots:
       - utf-8-validate
       - yauzl
 
-  webdriverio@10.2.0(bare-buffer@3.7.3):
+  webdriverio@10.2.0(bare-buffer@3.7.3)(supports-color@8.1.1):
     dependencies:
       '@types/node': 22.20.5
       '@types/sinonjs__fake-timers': 15.0.1
@@ -4979,7 +5030,7 @@ snapshots:
       rgb2hex: 0.2.5
       serialize-error: 13.1.0
       urlpattern-polyfill: 10.1.0
-      webdriver: 10.2.0
+      webdriver: 10.2.0(supports-color@8.1.1)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -5090,3 +5141,5 @@ snapshots:
       compress-commons: 7.0.1
       normalize-path: 3.0.0
       readable-stream: 4.8.0
+
+  zod@4.6.6: {}

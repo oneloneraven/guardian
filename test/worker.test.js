@@ -47,3 +47,20 @@ test("the admin host refuses /api to anyone the owner check refuses", async () =
   const response = await worker.fetch(new Request("https://admin.example.test/api/settings"), refused);
   expect(response.status).toBe(404);
 });
+
+test("the API host hands POST /v1/github/webhook to the webhook, which refuses an unsigned body", async () => {
+  const webhook = { ...env, GITHUB_WEBHOOK_SECRET: "secret", ADMIN_HOST: "admin.example.test" };
+  const request = () => new Request("https://example.test/v1/github/webhook", { method: "POST", body: "{}" });
+  expect((await worker.fetch(request(), webhook, { waitUntil() {} })).status).toBe(401);
+  const get = await worker.fetch(new Request("https://example.test/v1/github/webhook"), webhook, { waitUntil() {} });
+  expect(get.status).toBe(404);
+});
+
+test("the admin host doesn't serve the webhook", async () => {
+  const webhook = { ...admin, GITHUB_WEBHOOK_SECRET: "secret" };
+  const request = () => new Request("https://admin.example.test/v1/github/webhook", { method: "POST", body: "{}" });
+  const accepted = await worker.fetch(request(), webhook, { waitUntil() {} });
+  expect(await accepted.text()).toBe("asset");
+  const refused = { ...webhook, APP_ENV: "production", ACCESS_TEAM_DOMAIN: "", ACCESS_AUD: "" };
+  expect((await worker.fetch(request(), refused, { waitUntil() {} })).status).toBe(404);
+});

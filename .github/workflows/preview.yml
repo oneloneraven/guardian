@@ -1,0 +1,129 @@
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "infra/**"
+      - "test/**"
+      - "e2e/**"
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    if: github.actor != 'dependabot[bot]' && github.event.action != 'closed'
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-node-pnpm
+      - run: pnpm build
+      - name: Create and migrate the Preview database
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          DB_NAME="guardian-pr-$PR_NUMBER"
+          database_id() {
+            pnpm exec wrangler d1 list --json | sed -n '/^\[/,$p' | jq -r --arg name "$DB_NAME" '.[] | select(.name == $name) | .uuid'
+          }
+          DB_ID=$(database_id)
+          if [ -z "$DB_ID" ]; then
+            pnpm exec wrangler d1 create "$DB_NAME" --location weur
+            DB_ID=$(database_id)
+          fi
+          if [ -z "$DB_ID" ]; then
+            echo "::error::Couldn't find the D1 database $DB_NAME."
+            exit 1
+          fi
+          export DB_NAME DB_ID
+          node --input-type=module - <<'JS'
+          import { writeFileSync } from "node:fs";
+          import { experimental_readRawConfig as readRawConfig } from "wrangler";
+          const { rawConfig } = readRawConfig({ config: "wrangler.jsonc" });
+          const preview = rawConfig.env?.preview;
+          for (const [where, databases] of [["env.preview", preview?.d1_databases], ["env.preview.previews", preview?.previews?.d1_databases]]) {
+            const binding = databases?.find(db => db.binding === "DB");
+            if (!binding) {
+              console.error(`::error::${where}.d1_databases in wrangler.jsonc has no DB binding.`);
+              process.exit(1);
+            }
+            binding.database_name = process.env.DB_NAME;
+            binding.database_id = process.env.DB_ID;
+          }
+          writeFileSync(".wrangler-preview.jsonc", JSON.stringify(rawConfig, null, 2));
+          JS
+          pnpm exec wrangler d1 migrations apply "$DB_NAME" -c .wrangler-preview.jsonc --env preview --remote
+      - name: Upload the Preview
+        id: upload
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          ERR="$RUNNER_TEMP/wrangler-preview.err"
+          if ! OUTPUT=$(pnpm exec wrangler preview -c .wrangler-preview.jsonc --env preview --name "pr-$PR_NUMBER" --json 2>"$ERR"); then
+            cat "$ERR" >&2
+            echo "$OUTPUT" >&2
+            exit 1
+          fi
+          URL=$(echo "$OUTPUT" | sed -n '/^{/,$p' | jq -r '.preview.urls[0] // empty')
+          if [ -z "$URL" ]; then
+            cat "$ERR" >&2
+            echo "$OUTPUT" >&2
+            echo "::error::wrangler didn't report a Preview URL."
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+      - name: Comment the Preview URL
+        env:
+          PREVIEW_URL: ${{ steps.upload.outputs.url }}
+        run: |
+          gh pr comment "$PR_NUMBER" --edit-last --body "Preview: $PREVIEW_URL" \
+            || gh pr comment "$PR_NUMBER" --body "Preview: $PREVIEW_URL"
+
+  cleanup:
+    if: github.actor != 'dependabot[bot]' && github.event.action == 'closed'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-node-pnpm
+      - name: Delete the Preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: pnpm exec wrangler preview delete --env preview --name "pr-$PR_NUMBER" --skip-confirmation
+      - name: Delete the Preview database
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PREVIEW_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          DB_NAME="guardian-pr-$PR_NUMBER"
+          DATABASES=$(pnpm exec wrangler d1 list --json | sed -n '/^\[/,$p')
+          if echo "$DATABASES" | jq -e --arg name "$DB_NAME" 'any(.[]; .name == $name)' > /dev/null; then
+            pnpm exec wrangler d1 delete "$DB_NAME" --skip-confirmation
+          else
+            echo "$DB_NAME doesn't exist, nothing to delete."
+          fi

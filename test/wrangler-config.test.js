@@ -11,3 +11,8 @@ test("every environment runs the Worker before static assets, so the admin check
     expect(env.assets?.run_worker_first, name).toBe(true);
   }
 });
+
+test("in e2e, the identity the skipped Access check gives is the owner", () => {
+  expect(config.env.e2e.vars.ADMIN_ACCESS_CHECK).toBe("off");
+  expect(config.env.e2e.vars.OWNER_EMAIL).toBe("dev@localhost");
+});

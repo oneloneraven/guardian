@@ -19,7 +19,7 @@
     {
       "binding": "DB",
       "database_name": "guardian",
-      "database_id": "",
+      "database_id": "bdaeb3d5-53e9-4fe4-9a0e-7d6c8aee8b05",
       "migrations_dir": "migrations"
     }
   ],
@@ -27,8 +27,8 @@
     "production": {
       "vars": {
         "APP_ENV": "production",
-        "ACCESS_TEAM_DOMAIN": "",
-        "ACCESS_AUD": "",
+        "ACCESS_TEAM_DOMAIN": "ravendarque.cloudflareaccess.com",
+        "ACCESS_AUD": "f5e21a9a1a1f89eb5759a7e61125d529732a4a783e6ab8f9adb69689c49f1dd7",
         "ADMIN_HOST": "guardian.oneloneraven.com"
       },
       "assets": {
@@ -39,7 +39,7 @@
         {
           "binding": "DB",
           "database_name": "guardian",
-          "database_id": "",
+          "database_id": "bdaeb3d5-53e9-4fe4-9a0e-7d6c8aee8b05",
           "migrations_dir": "migrations"
         }
       ],
@@ -99,7 +99,7 @@
         {
           "binding": "DB",
           "database_name": "guardian",
-          "database_id": "",
+          "database_id": "bdaeb3d5-53e9-4fe4-9a0e-7d6c8aee8b05",
           "migrations_dir": "migrations"
         }
       ]

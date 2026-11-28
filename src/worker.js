@@ -23,7 +23,8 @@ export default {
     if (env.ADMIN_HOST && hostname === env.ADMIN_HOST) {
       const identity = await adminIdentity(request, env);
       if (!identity) return notFound();
-      if (pathname.startsWith("/api/")) return routeAdmin(request, env, identity);
+      if (pathname.startsWith("/api/"))
+        return routeAdmin(request, env, identity, undefined, { waitUntil: promise => ctx.waitUntil(promise) });
       return env.ASSETS.fetch(request);
     }
     if (pathname === "/v1/github/webhook") return handleGithubWebhook(request, env, ctx);

@@ -300,3 +300,16 @@ button:disabled {
     transition: none !important;
   }
 }
+
+.record,
+.record-detail {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.counts {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+}

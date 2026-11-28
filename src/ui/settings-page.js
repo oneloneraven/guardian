@@ -1,9 +1,9 @@
 import * as api from "./api.js";
 import { h } from "./dom.js";
-import { checkException, checkPin, checkToken, describeChange, parseNames } from "./validate.js";
+import { checkException, checkPin, checkToken, describeChange, diffRecords, parseNames } from "./validate.js";
 
 /** @typedef {import("./api.js").Settings} Settings */
-/** @typedef {{ settings: Settings, reload: (section: string, message: string) => Promise<void> }} Page */
+/** @typedef {{ settings: Settings, results: import("./api.js").Result[] | null, events: import("./api.js").SecurityEvent[] | null, reload: (section: string, message: string) => Promise<void> }} Page */
 /** @typedef {{ name: string, label: string, hint?: string, type?: "input" | "textarea" | "select", options?: string[][], value?: string, autocomplete?: string }} FieldSpec */
 
 /** @param {string} iso */
@@ -276,6 +276,95 @@ const VISIBILITY = [
   ["private", "Private"],
 ];
 
+/**
+ * Loads the live record's changes on demand, and accepts it after an inline confirmation.
+ * @param {Page} page
+ * @param {string} name
+ */
+function recordControl(page, name) {
+  const wrapper = h("div", { class: "record" });
+  const detail = h("div", { class: "record-detail", "aria-live": "polite" });
+  const failure = h("p", { class: "form-error", role: "alert" });
+  const show = h(
+    "button",
+    {
+      type: "button",
+      "aria-label": `Show changes to ${name}'s record`,
+      onclick: async () => {
+        show.disabled = true;
+        failure.textContent = "";
+        try {
+          const { accepted, live } = await api.getRecord(name);
+          present(accepted, live);
+        } catch (error) {
+          failure.textContent = error instanceof Error ? error.message : String(error);
+        }
+        show.disabled = false;
+      },
+    },
+    "Show changes",
+  );
+  /**
+   * @param {import("./api.js").RecordView | null} accepted
+   * @param {import("./api.js").RecordView | null} live
+   */
+  const present = (accepted, live) => {
+    if (!live) {
+      detail.replaceChildren(h("p", null, "There's no record in the repository."));
+      return;
+    }
+    if (accepted && accepted.sha === live.sha) {
+      detail.replaceChildren(h("p", null, "The accepted record is up to date."));
+      return;
+    }
+    const diff = diffRecords(accepted, live);
+    const accept = h(
+      "button",
+      { type: "button", class: "primary", onclick: () => ask(accepted, live) },
+      "Accept this record",
+    );
+    detail.replaceChildren(
+      ...(accepted ? [] : [h("p", { class: "muted" }, "Nothing is accepted yet, so Guardian expects no modules.")]),
+      h("p", null, diff.modules),
+      h("p", null, diff.flags),
+      accept,
+    );
+  };
+  /**
+   * @param {import("./api.js").RecordView | null} accepted
+   * @param {import("./api.js").RecordView} live
+   */
+  const ask = (accepted, live) => {
+    const confirm = h(
+      "button",
+      {
+        type: "button",
+        class: "primary",
+        onclick: async () => {
+          confirm.disabled = true;
+          failure.textContent = "";
+          try {
+            await api.acceptRecord(name, live.sha);
+            await page.reload("repositories", `Record accepted for ${name}.`);
+          } catch (error) {
+            failure.textContent = error instanceof Error ? error.message : String(error);
+            confirm.disabled = false;
+          }
+        },
+      },
+      "Accept record",
+    );
+    const cancel = h("button", { type: "button", onclick: () => present(accepted, live) }, "Not yet");
+    detail.replaceChildren(
+      h("p", null, `Accept this record for ${name}? Guardian will expect the modules and flags it lists.`),
+      h("div", { class: "actions" }, confirm, cancel),
+    );
+    confirm.focus();
+  };
+  wrapper.replaceChildren(show, detail, failure);
+  return wrapper;
+}
+
 /** @param {Page} page */
 function repositoriesSection(page) {
   const { repositories } = page.settings;
@@ -295,6 +384,7 @@ function repositoriesSection(page) {
                 ? `Expected to be ${repository.expectedVisibility}.`
                 : "Expected visibility not set: its visibility check is Unknown.",
             ),
+            recordControl(page, repository.name),
           ),
         ),
       )
@@ -460,6 +550,110 @@ function auditSection(page) {
   );
 }
 
+/** @param {Page} page */
+function resultsSection(page) {
+  const { results } = page;
+  if (!results) {
+    return section(
+      "results",
+      "Results",
+      h("p", { class: "form-error" }, "Couldn't load the results: reload the page to try again."),
+    );
+  }
+  if (results.length === 0) {
+    return section(
+      "results",
+      "Results",
+      h("p", { class: "empty" }, "No results yet. The first sweep runs within 15 minutes."),
+    );
+  }
+  const problems = results.filter(result => result.status === "fail" || result.status === "unknown");
+  /** @type {Map<string, { pass: number, skipped: number }>} */
+  const counts = new Map();
+  for (const result of results) {
+    const count = counts.get(result.target) ?? { pass: 0, skipped: 0 };
+    if (result.status === "pass") count.pass++;
+    if (result.status === "skipped") count.skipped++;
+    counts.set(result.target, count);
+  }
+  const lines = [...counts]
+    .filter(([, count]) => count.pass > 0 || count.skipped > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([target, { pass, skipped }]) =>
+      h(
+        "li",
+        { "data-target": target },
+        `${target}: ${pass} ${pass === 1 ? "check passes" : "checks pass"}${skipped ? `, ${skipped} skipped` : ""}`,
+      ),
+    );
+  return section(
+    "results",
+    "Results",
+    problems.length
+      ? h(
+          "ul",
+          { class: "rows" },
+          ...problems.map(result =>
+            h(
+              "li",
+              { "data-result": `${result.target}/${result.check}`, "data-status": result.status },
+              h("p", { class: "row-title" }, `${result.target}: ${result.title}`),
+              h(
+                "p",
+                { class: result.status === "fail" ? "attention" : "muted" },
+                result.status === "fail" ? "Failed" : "Unknown",
+              ),
+              h("p", null, result.reason ?? ""),
+              result.link
+                ? h(
+                    "a",
+                    {
+                      href: result.link,
+                      target: "_blank",
+                      rel: "noopener noreferrer",
+                      "aria-label": `Fix on GitHub: ${result.title} on ${result.target}`,
+                    },
+                    "Fix on GitHub",
+                  )
+                : null,
+            ),
+          ),
+        )
+      : h("p", { class: "state" }, "Nothing is failing or unknown."),
+    lines.length ? h("ul", { class: "counts" }, ...lines) : null,
+  );
+}
+
+/** @param {Page} page */
+function eventsSection(page) {
+  const { events } = page;
+  if (!events) {
+    return section(
+      "events",
+      "Security events",
+      h("p", { class: "form-error" }, "Couldn't load the events: reload the page to try again."),
+    );
+  }
+  return section(
+    "events",
+    "Security events",
+    events.length
+      ? h(
+          "ol",
+          { class: "rows" },
+          ...events.map(event =>
+            h(
+              "li",
+              { "data-event": `${event.target}/${event.at}` },
+              h("p", null, event.detail ?? event.action),
+              h("p", { class: "muted" }, `${event.target} · `, h("time", { datetime: event.at }, when(event.at))),
+            ),
+          ),
+        )
+      : h("p", { class: "empty" }, "No security events yet."),
+  );
+}
+
 /**
  * @param {HTMLElement} root
  * @param {Page} page
@@ -479,7 +673,7 @@ export function renderSettings(root, page) {
     exceptionsSection(page),
     tokensSection(page),
     auditSection(page),
-    section("results", "Results", h("p", { class: "empty" }, "Not watching yet.")),
-    section("events", "Security events", h("p", { class: "empty" }, "Not watching yet.")),
+    resultsSection(page),
+    eventsSection(page),
   );
 }

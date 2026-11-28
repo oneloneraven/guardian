@@ -86,3 +86,23 @@ export function describeChange({ actor, key, to }) {
       return `${who} changed ${key}`;
   }
 }
+
+/**
+ * @param {{ modules: string[], flags: Record<string, boolean> } | null} accepted
+ * @param {{ modules: string[], flags: Record<string, boolean> }} live
+ * @returns {{ modules: string, flags: string }}
+ */
+export function diffRecords(accepted, live) {
+  const before = accepted ?? { modules: [], flags: {} };
+  const added = live.modules.filter(module => !before.modules.includes(module));
+  const removed = before.modules.filter(module => !live.modules.includes(module));
+  const moduleParts = [...added.map(module => `+${module}`), ...removed.map(module => `\u2212${module}`)];
+  const names = [...new Set([...Object.keys(before.flags), ...Object.keys(live.flags)])].sort();
+  const flagParts = names
+    .filter(name => Boolean(before.flags[name]) !== Boolean(live.flags[name]))
+    .map(name => `${name}: ${Boolean(before.flags[name])} \u2192 ${Boolean(live.flags[name])}`);
+  return {
+    modules: `Modules: ${moduleParts.length ? moduleParts.join(" ") : "no change"}`,
+    flags: `Flags: ${flagParts.length ? flagParts.join(", ") : "no change"}`,
+  };
+}

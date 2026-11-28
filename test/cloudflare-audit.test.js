@@ -70,7 +70,7 @@ test("reads every page by cursor before moving the watermark", async () => {
   expect(calls[2].searchParams.get("cursor")).toBe("c2");
   expect(/** @type {any} */ (inits[0].headers).Authorization).toBe("Bearer secret-token");
   expect(await watermark()).toBeNull();
-  await recordAudit(config, entries, NOW);
+  await recordAudit(config, entries, NOW, true);
   expect(await watermark()).toBe(iso(NOW));
 });
 
@@ -79,6 +79,7 @@ test("re-reads the overlap and stores a late entry once", async () => {
     config,
     entriesOf(await readAudit(config, NOW - 5 * MINUTE, serve([{ result: [raw("a")] }]).fetchImpl)),
     NOW - 5 * MINUTE,
+    true,
   );
   const late = raw("late", {
     action: { type: "update", result: "success", description: "Late", time: iso(NOW - 8 * MINUTE) },
@@ -87,9 +88,9 @@ test("re-reads the overlap and stores a late entry once", async () => {
   const read = entriesOf(await readAudit(config, NOW, fetchImpl));
   expect(calls[0].searchParams.get("since")).toBe(iso(NOW - 15 * MINUTE));
   expect(calls[0].searchParams.get("before")).toBe(iso(NOW));
-  const fresh = await recordAudit(config, read, NOW);
+  const fresh = await recordAudit(config, read, NOW, true);
   expect(fresh.map(entry => entry.id)).toEqual(["late"]);
-  await recordAudit(config, read, NOW);
+  await recordAudit(config, read, NOW, true);
   const { results } = await env.DB.prepare("SELECT delivery FROM security_events ORDER BY delivery").all();
   expect(results.map(row => row.delivery)).toEqual(["cf:a", "cf:late"]);
 });
@@ -110,7 +111,7 @@ test("view entries are skipped", async () => {
   const view = raw("v", { action: { type: "view", result: "success", description: "View", time: iso(NOW) } });
   const entries = entriesOf(await readAudit(config, NOW, serve([{ result: [view, raw("a")] }]).fetchImpl));
   expect(entries.map((/** @type {any} */ entry) => entry.id)).toEqual(["a"]);
-  expect(await recordAudit(config, [{ ...entries[0], id: "v", actionType: "view" }], NOW)).toEqual([]);
+  expect(await recordAudit(config, [{ ...entries[0], id: "v", actionType: "view" }], NOW, true)).toEqual([]);
   expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM security_events").first())?.n).toBe(0);
 });
 
@@ -120,7 +121,7 @@ test("no stored field holds an @", async () => {
     actor: { type: "user", context: "dashboard", email: "someone@example.com", token_name: "deploy@guardian" },
   });
   const entries = entriesOf(await readAudit(config, NOW, serve([{ result: [entry, raw("f")] }]).fetchImpl));
-  await recordAudit(config, entries, NOW);
+  await recordAudit(config, entries, NOW, true);
   const { results } = await env.DB.prepare("SELECT * FROM security_events").all();
   expect(results).toHaveLength(2);
   expect(JSON.stringify(results)).not.toContain("@");

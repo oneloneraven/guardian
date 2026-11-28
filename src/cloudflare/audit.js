@@ -138,10 +138,10 @@ const detailOf = (entry, actor) =>
  * @param {AuditEnv} env
  * @param {AuditEntry[]} entries
  * @param {Date | string | number} now
- * @param {boolean} [complete] false when the read stopped at the page limit, so the watermark stops at the last entry
+ * @param {boolean} complete false when the read stopped at the page limit, so the watermark stops at the last entry
  * @returns {Promise<AuditEntry[]>} the entries that weren't stored already
  */
-export async function recordAudit(env, entries, now, complete = true) {
+export async function recordAudit(env, entries, now, complete) {
   /** @type {AuditEntry[]} */
   const fresh = [];
   for (const entry of entries) {

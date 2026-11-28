@@ -40,8 +40,8 @@ function toEntry(raw) {
     time: clean(raw.action?.time),
     actorType: clean(raw.actor?.type),
     actorContext: clean(raw.actor?.context),
-    tokenId: clean(raw.actor?.token_id),
-    tokenName: clean(raw.actor?.token_name),
+    tokenId: clean(raw.actor?.token?.id ?? raw.actor?.token_id),
+    tokenName: clean(raw.actor?.token?.name ?? raw.actor?.token_name),
     actionType: clean(raw.action?.type),
     actionResult: clean(raw.action?.result),
     description: clean(raw.action?.description),
@@ -124,7 +124,7 @@ export async function readAudit(env, now, fetchImpl = fetch) {
 /** @param {AuditEntry} entry */
 export function actorOf(entry) {
   if (entry.tokenName) return entry.tokenName;
-  if (entry.actorType === "user") return "a dashboard user";
+  if (entry.actorType === "user") return entry.tokenId ? "a user API token" : "a dashboard user";
   if (entry.actorType === "system" || entry.actorType === "cloudflare_admin") return "Cloudflare";
   if (entry.actorType === "account" || entry.tokenId) return "an account token";
   return "an unknown actor";

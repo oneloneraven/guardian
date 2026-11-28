@@ -181,7 +181,7 @@ test("a failure on an alerting row says it tried to", () => {
     resourceId: "guardian",
     actionResult: "failure",
   });
-  expect(deploy).toEqual({ level: "alert", text: "`a dashboard user` tried to deploy Worker `guardian`" });
+  expect(deploy).toEqual({ level: "alert", text: "`a user API token` tried to deploy Worker `guardian`" });
   expect(run({ product: "access", resourceType: "policy", tokenId: "t-coraxia", actionResult: "failure" }).level).toBe(
     "alert",
   );

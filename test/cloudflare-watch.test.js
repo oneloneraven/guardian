@@ -43,7 +43,7 @@ const raw = (id, over = {}) => ({
 function cloudflare(result, status = 200) {
   const posted = /** @type {string[]} */ ([]);
   vi.stubGlobal("fetch", async (/** @type {any} */ url, /** @type {any} */ init) => {
-    if (String(url).startsWith("https://discord.example.test")) {
+    if (new URL(String(url)).hostname === "discord.example.test") {
       posted.push(JSON.parse(init.body).content);
       return new Response(null, { status: 204 });
     }

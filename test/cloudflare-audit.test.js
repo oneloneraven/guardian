@@ -192,3 +192,25 @@ test("an account token's id is stored with its event", async () => {
     { delivery: "cf:u", actor: "a dashboard user", actor_token_id: null },
   ]);
 });
+
+test("the token id is read from where the live log puts it, and a user's API token is named as one", async () => {
+  const user = raw("p", {
+    actor: { type: "user", context: "api_token", id: "user-1", token: { id: "29f469eb90bcc0227ec10caced410345" } },
+    action: { type: "create", result: "success", description: "Create a namespace", time: iso(NOW) },
+    resource: { id: "ns", type: "kv.namespaces", product: "storage", scope: "accounts" },
+  });
+  const account = raw("q", {
+    actor: { type: "account", context: "api_token", id: "account-1", token: { id: "tok-acc", name: "Deploy" } },
+    action: { type: "create", result: "success", description: "Upload Version", time: iso(NOW) },
+    resource: { id: "guardian-production", type: "scripts.versions", product: "workers", scope: "accounts" },
+  });
+  const entries = entriesOf(await readAudit(config, NOW, serve([{ result: [user, account] }]).fetchImpl));
+  await recordAudit(config, entries, NOW, true);
+  const { results } = await env.DB.prepare(
+    "SELECT delivery, actor, actor_token_id FROM security_events ORDER BY delivery",
+  ).all();
+  expect(results).toEqual([
+    { delivery: "cf:p", actor: "a user API token", actor_token_id: "29f469eb90bcc0227ec10caced410345" },
+    { delivery: "cf:q", actor: "Deploy", actor_token_id: "tok-acc" },
+  ]);
+});

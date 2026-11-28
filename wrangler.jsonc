@@ -32,7 +32,7 @@
         "ACCESS_AUD": "f5e21a9a1a1f89eb5759a7e61125d529732a4a783e6ab8f9adb69689c49f1dd7",
         "ADMIN_HOST": "guardian.oneloneraven.com",
         "GITHUB_ORG": "oneloneraven",
-        "GITHUB_APP_ID": ""
+        "GITHUB_APP_ID": "5958768"
       },
       "assets": {
         "directory": "./dist",

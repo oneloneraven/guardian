@@ -122,7 +122,7 @@ export async function readAudit(env, now, fetchImpl = fetch) {
 }
 
 /** @param {AuditEntry} entry */
-function actorOf(entry) {
+export function actorOf(entry) {
   if (entry.tokenName) return entry.tokenName;
   if (entry.actorType === "user") return "a dashboard user";
   if (entry.actorType === "system" || entry.actorType === "cloudflare_admin") return "Cloudflare";

@@ -499,7 +499,12 @@ function tokensSection(page) {
       fields: [
         { name: "tokenId", label: "Token id" },
         { name: "name", label: "Name" },
-        { name: "purpose", label: "Purpose", type: "textarea" },
+        {
+          name: "purpose",
+          label: "Purpose",
+          type: "textarea",
+          hint: "For Coraxia's infrastructure token, start with “Coraxia infra”.",
+        },
         { name: "repository", label: "Repository (optional)" },
       ],
       submit: "Add token",

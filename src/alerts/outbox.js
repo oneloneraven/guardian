@@ -53,6 +53,7 @@ async function stillHolds(env, row) {
       .first();
     return repository !== null && repository.expected_visibility === null;
   }
+  if (row.kind === "cloudflare") return true;
   const result = await env.DB.prepare("SELECT status, reason FROM results WHERE target = ?1 AND check_id = ?2")
     .bind(row.target, row.subject)
     .first();

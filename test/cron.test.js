@@ -22,6 +22,8 @@ function fakes(overrides = {}) {
     transitions,
     deps: {
       retryUnnotified: async () => void calls.push("retry"),
+      watchAudit: async () => void calls.push("audit"),
+      pingHeartbeat: async () => calls.push("ping") > 0,
       sweep: async (/** @type {unknown} */ _env, /** @type {string} */ by) => {
         calls.push(`sweep:${by}`);
         return { checked: 1, unknown: null, transitions };
@@ -53,14 +55,14 @@ test("minute 15 sweeps and minute 20 doesn't", async () => {
   for (const minute of [5, 20, 55]) {
     const { calls, deps } = fakes();
     await runScheduled(env, { cron: EVERY_FIVE, scheduledTime: at(minute) }, ctx, deps);
-    expect(calls, `minute ${minute}`).toEqual(["retry", "deliver"]);
+    expect(calls, `minute ${minute}`).toEqual(["retry", "audit", "deliver", "ping"]);
   }
 });
 
 test("the daily run sweeps and prunes", async () => {
   const { calls, deps } = fakes();
   await runScheduled(env, { cron: DAILY, scheduledTime: Date.UTC(2026, 10, 27, 3, 41) }, ctx, deps);
-  expect(calls).toEqual(["retry", "sweep:daily", "raise", "pruneEvents", "pruneAlerts", "deliver"]);
+  expect(calls).toEqual(["retry", "audit", "sweep:daily", "raise", "pruneEvents", "pruneAlerts", "deliver", "ping"]);
 });
 
 test("every run retries unnotified settings changes", async () => {
@@ -72,7 +74,8 @@ test("every run retries unnotified settings changes", async () => {
     const { calls, deps } = fakes();
     await runScheduled(env, { cron: String(cron), scheduledTime: Number(scheduledTime) }, ctx, deps);
     expect(calls[0]).toBe("retry");
-    expect(calls.at(-1)).toBe("deliver");
+    expect(calls.at(-1)).toBe("ping");
+    expect(calls.at(-2)).toBe("deliver");
   }
 });
 
@@ -85,7 +88,7 @@ test("a sweep that throws still delivers pending alerts", async () => {
     },
   });
   await runScheduled(env, { cron: EVERY_FIVE, scheduledTime: at(15) }, ctx, deps);
-  expect(calls).toEqual(["retry", "sweep:sweep", "deliver"]);
+  expect(calls).toEqual(["retry", "audit", "sweep:sweep", "deliver", "ping"]);
   expect(log).toHaveBeenCalledWith("Sweep failed", "boom");
 });
 
@@ -100,13 +103,13 @@ test("a failing step doesn't stop the daily steps after it", async () => {
     },
   });
   await runScheduled(env, { cron: DAILY, scheduledTime: at(41) }, ctx, deps);
-  expect(calls).toEqual(["sweep:daily", "raise", "pruneAlerts", "deliver"]);
+  expect(calls).toEqual(["audit", "sweep:daily", "raise", "pruneAlerts", "deliver", "ping"]);
 });
 
 test("a sweep's failing transitions are raised before delivery", async () => {
   const { calls, raised, transitions, deps } = fakes();
   await runScheduled(env, { cron: EVERY_FIVE, scheduledTime: at(30) }, ctx, deps);
-  expect(calls).toEqual(["retry", "sweep:sweep", "raise", "deliver"]);
+  expect(calls).toEqual(["retry", "audit", "sweep:sweep", "raise", "deliver", "ping"]);
   expect(raised).toEqual(transitions);
 });
 
@@ -135,4 +138,44 @@ test("the daily run prunes notified alerts", async () => {
   const alerts = (await env.DB.prepare("SELECT reason FROM alerts").all()).results;
   expect(alerts).toEqual([{ reason: "new" }]);
   expect((await env.DB.prepare("SELECT count(*) AS n FROM security_events").first())?.n).toBe(0);
+});
+
+test("the audit-log step's failure doesn't stop the sweep or delivery", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { calls, deps } = fakes({
+    watchAudit: async () => {
+      throw new Error("cloudflare down");
+    },
+  });
+  await runScheduled(env, { cron: EVERY_FIVE, scheduledTime: at(15) }, ctx, deps);
+  expect(calls).toEqual(["retry", "sweep:sweep", "raise", "deliver", "ping"]);
+  expect(log).toHaveBeenCalledWith("Reading the Cloudflare audit log failed", "cloudflare down");
+});
+
+test("the heartbeat is pinged at the end of every run, even when every other step throws", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const boom = async () => {
+    throw new Error("boom");
+  };
+  const { calls, deps } = fakes({
+    retryUnnotified: boom,
+    watchAudit: boom,
+    sweep: boom,
+    pruneEvents: boom,
+    pruneAlerts: boom,
+    deliverPending: boom,
+  });
+  await runScheduled(env, { cron: DAILY, scheduledTime: at(41) }, ctx, deps);
+  expect(calls).toEqual(["ping"]);
+});
+
+test("a throwing heartbeat doesn't fail the run", async () => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { deps } = fakes({
+    pingHeartbeat: async () => {
+      throw new Error("better stack");
+    },
+  });
+  await runScheduled(env, { cron: EVERY_FIVE, scheduledTime: at(20) }, ctx, deps);
+  expect(log).toHaveBeenCalledWith("Pinging the heartbeat failed", "better stack");
 });

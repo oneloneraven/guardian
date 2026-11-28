@@ -1,5 +1,5 @@
 /**
- * @typedef {{ kind: "fail" | "resolved" | "unknown" | "new-repository", target: string, subject: string, text: string }} Alert
+ * @typedef {{ kind: "fail" | "resolved" | "unknown" | "new-repository" | "cloudflare", target: string, subject: string, text: string }} Alert
  */
 
 export const VISIBILITY_NOT_SET = "Expected visibility not set";

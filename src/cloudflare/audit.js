@@ -67,7 +67,7 @@ const failure = status =>
  * @param {AuditEnv} env
  * @param {Date | string | number} now
  * @param {typeof fetch} [fetchImpl]
- * @returns {Promise<{ entries: AuditEntry[] } | { unreadable: string }>}
+ * @returns {Promise<{ entries: AuditEntry[], complete: boolean } | { unreadable: string }>}
  */
 export async function readAudit(env, now, fetchImpl = fetch) {
   if (!env.CLOUDFLARE_ACCOUNT_ID || !env.CLOUDFLARE_AUDIT_TOKEN) {
@@ -116,9 +116,9 @@ export async function readAudit(env, now, fetchImpl = fetch) {
       if (entry.actionType !== "view") entries.push(entry);
     }
     cursor = String(body.result_info?.cursor ?? "");
-    if (!cursor) return { entries };
+    if (!cursor) return { entries, complete: true };
   }
-  return unreadable(`Couldn't read the audit log (more than ${MAX_PAGES} pages)`);
+  return { entries, complete: false };
 }
 
 /** @param {AuditEntry} entry */
@@ -138,9 +138,10 @@ const detailOf = (entry, actor) =>
  * @param {AuditEnv} env
  * @param {AuditEntry[]} entries
  * @param {Date | string | number} now
+ * @param {boolean} [complete] false when the read stopped at the page limit, so the watermark stops at the last entry
  * @returns {Promise<AuditEntry[]>} the entries that weren't stored already
  */
-export async function recordAudit(env, entries, now) {
+export async function recordAudit(env, entries, now, complete = true) {
   /** @type {AuditEntry[]} */
   const fresh = [];
   for (const entry of entries) {
@@ -157,10 +158,14 @@ export async function recordAudit(env, entries, now) {
     });
     if (stored) fresh.push(entry);
   }
-  const at = new Date(now).toISOString();
+  const last = entries.at(-1);
+  const position = complete ? now : last ? last.time : null;
+  if (position === null) return fresh;
+  const at = new Date(position).toISOString();
   await env.DB.prepare(
     `INSERT INTO cursors (name, position, updated_at) VALUES (?1, ?2, ?2)
-     ON CONFLICT (name) DO UPDATE SET position = excluded.position, updated_at = excluded.updated_at`,
+     ON CONFLICT (name) DO UPDATE SET position = excluded.position, updated_at = excluded.updated_at
+     WHERE excluded.position > cursors.position`,
   )
     .bind(CURSOR, at)
     .run();

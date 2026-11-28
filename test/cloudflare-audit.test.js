@@ -145,3 +145,32 @@ test("the first run reads the last 15 minutes", async () => {
   expect(calls[0].searchParams.get("since")).toBe(iso(NOW - 15 * MINUTE));
   expect(calls[0].searchParams.get("before")).toBe(iso(NOW));
 });
+
+test("a backlog over 20 pages is read in chunks and the watermark moves to the last entry read", async () => {
+  const pages = Array.from({ length: 25 }, (_, index) => ({
+    result: [
+      raw(`e${index}`, {
+        action: { type: "create", result: "success", description: "Create", time: iso(NOW - (60 - index) * MINUTE) },
+      }),
+    ],
+    cursor: `c${index}`,
+  }));
+  const { fetchImpl, calls } = serve(pages);
+  const read = await readAudit(config, NOW, fetchImpl);
+  expect(calls).toHaveLength(20);
+  expect(read).toMatchObject({ complete: false });
+  const entries = entriesOf(read);
+  expect(entries).toHaveLength(20);
+  await recordAudit(config, entries, NOW, /** @type {any} */ (read).complete);
+  expect(await watermark()).toBe(iso(NOW - 41 * MINUTE));
+  const next = serve([{}]);
+  await readAudit(config, NOW, next.fetchImpl);
+  expect(next.calls[0].searchParams.get("since")).toBe(iso(NOW - 51 * MINUTE));
+});
+
+test("a complete read moves the watermark to now", async () => {
+  const read = await readAudit(config, NOW, serve([{ result: [raw("a")] }]).fetchImpl);
+  expect(read).toMatchObject({ complete: true });
+  await recordAudit(config, entriesOf(read), NOW, /** @type {any} */ (read).complete);
+  expect(await watermark()).toBe(iso(NOW));
+});

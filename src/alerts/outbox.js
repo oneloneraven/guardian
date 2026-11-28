@@ -13,7 +13,7 @@ const CLAIM_EXPIRED = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-60 seconds')";
 /**
  * @param {OutboxEnv} env
  * @param {Alert} alert
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} false when an identical alert is already pending or standing
  */
 export async function raise(env, { kind, target, subject, text }) {
   const duplicate =
@@ -29,10 +29,11 @@ export async function raise(env, { kind, target, subject, text }) {
         )
           .bind(kind, target, subject, text)
           .first();
-  if (duplicate) return;
+  if (duplicate) return false;
   await env.DB.prepare(`INSERT INTO alerts (kind, target, subject, reason, posted_at) VALUES (?1, ?2, ?3, ?4, ${NOW})`)
     .bind(kind, target, subject, text)
     .run();
+  return true;
 }
 
 /** @param {OutboxEnv} env */

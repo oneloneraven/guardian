@@ -63,15 +63,15 @@ export async function saveResult(env, { target, check, result, by, at }) {
 
 /**
  * @param {{ DB: Database }} env
- * @param {{ delivery: string | null, source: "github" | "cloudflare", target: string, action: string, actor: string | null, detail: string | null, at: string }} event
+ * @param {{ delivery: string | null, source: "github" | "cloudflare", target: string, action: string, actor: string | null, actorTokenId?: string | null, detail: string | null, at: string }} event
  * @returns {Promise<boolean>} false when the delivery was already stored
  */
-export async function recordEvent(env, { delivery, source, target, action, actor, detail, at }) {
+export async function recordEvent(env, { delivery, source, target, action, actor, actorTokenId, detail, at }) {
   const { meta } = await env.DB.prepare(
-    `INSERT OR IGNORE INTO security_events (source, target, action, actor, detail, occurred_at, delivery)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+    `INSERT OR IGNORE INTO security_events (source, target, action, actor, detail, occurred_at, delivery, actor_token_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
   )
-    .bind(source, target, action, actor, detail, at, delivery)
+    .bind(source, target, action, actor, detail, at, delivery, actorTokenId || null)
     .run();
   return meta.changes > 0;
 }

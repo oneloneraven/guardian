@@ -186,3 +186,43 @@ test("a failure on an alerting row says it tried to", () => {
     "alert",
   );
 });
+
+test("a tokens product alerts as an API token, even with no resource type", () => {
+  const result = run({ product: "tokens", resourceType: "", actionType: "create", description: "Create Token" });
+  expect(result).toEqual({ level: "alert", text: "`a dashboard user` created API token `res-1`" });
+  expect(
+    run({ product: "account", resourceType: "settings", actionType: "create", description: "TOKEN_CREATE" }).level,
+  ).toBe("alert");
+});
+
+test("D1 queries are routine whatever the actor, however they are logged", () => {
+  const shape = {
+    product: "d1",
+    resourceType: "database.query",
+    actionType: "create",
+    description: "Query D1 Database",
+  };
+  expect(run({ ...shape, actorType: "account", tokenId: "t-other" }).level).toBe("record");
+  expect(run(shape).level).toBe("record");
+  expect(run({ ...shape, resourceType: "database", resourceId: "db" }).level).toBe("record");
+  expect(run({ ...shape, actionResult: "failure" }).level).toBe("alert");
+  expect(
+    run({ product: "d1", resourceType: "database", actionType: "create", description: "Create D1 Database" }).level,
+  ).toBe("alert");
+});
+
+test("a Worker's preview, assets upload and subdomain work is routine for its own repository's token only", () => {
+  const types = [
+    ["scripts.subdomain", "guardian-production", "Update Worker Script Subdomain"],
+    ["workers.previews.deployments", "guardian-preview", "Create Preview Deployment"],
+    ["scripts.assets-upload-session", "guardian-production", "Create Worker Assets Upload Session"],
+    ["workers.previews", "guardian-preview", "Edit Preview"],
+  ];
+  for (const [resourceType, resourceId, description] of types) {
+    const shape = { product: "workers", resourceType, resourceId, description, actionType: "create" };
+    expect(run({ ...shape, tokenId: "t-deploy" }).level, resourceType).toBe("record");
+    expect(run({ ...shape, tokenId: "t-infra" }).level, resourceType).toBe("alert");
+    expect(run({ ...shape, tokenId: "t-deploy", resourceId: "coraxia-preview" }).level, resourceType).toBe("alert");
+    expect(run(shape).level, resourceType).toBe("alert");
+  }
+});

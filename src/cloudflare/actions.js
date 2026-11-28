@@ -87,7 +87,8 @@ function d1(context) {
   if (key.includes("timetravel") || key.includes("restore") || description.includes("restore")) {
     return alert({ ...context, entry: { ...entry, actionType: "restore" } }, `${subject(context)}`);
   }
-  if (key.includes("query") && entry.actionResult.toLowerCase() !== "failure") return record(context, subject(context));
+  if ((key.includes("query") || description.includes("query")) && entry.actionResult.toLowerCase() !== "failure")
+    return record(context, subject(context));
   return alert(context, `D1 ${entry.resourceType} ${code(entry.resourceId)}`);
 }
 
@@ -118,7 +119,8 @@ export const ROWS = [
   },
   {
     name: "api-tokens",
-    matches: key => key.includes("apitoken") || key.includes("usertoken") || key.includes("accounttoken"),
+    matches: key =>
+      key.startsWith("tokens") || key.includes("apitoken") || key.includes("usertoken") || key.includes("accounttoken"),
     decide: context => alert(context, `API token ${code(context.entry.resourceId)}`),
   },
   {

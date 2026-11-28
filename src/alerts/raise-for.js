@@ -10,7 +10,10 @@ import { decide } from "./policy.js";
 export async function raiseFor(env, transitions) {
   const loaded = await loadStandard(env);
   /** @type {Map<string, string>} */
-  const titles = new Map([["record-accepted", "Accepted record"]]);
+  const titles = new Map([
+    ["record-accepted", "Accepted record"],
+    ["audit-log", "Cloudflare audit log"],
+  ]);
   if ("standard" in loaded) {
     for (const check of /** @type {{ id: string, title?: string }[]} */ (loaded.standard.checks ?? [])) {
       if (check.title && !titles.has(check.id)) titles.set(check.id, check.title);

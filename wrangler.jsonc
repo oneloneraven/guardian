@@ -33,8 +33,8 @@
         "ADMIN_HOST": "guardian.oneloneraven.com",
         "GITHUB_ORG": "oneloneraven",
         "GITHUB_APP_ID": "5958768",
-        "ACCESS_RESULTS_AUD": "",
-        "RESULTS_CLIENT_ID": "",
+        "ACCESS_RESULTS_AUD": "b8db8810f887faa5e36b54f6eecd8f7284d45bd3956fdb8fbbcdc3f1fbfaae6d",
+        "RESULTS_CLIENT_ID": "d4e0f95f021b4f31b24b0c1bcb6362d3.access",
         "CLOUDFLARE_ACCOUNT_ID": "4f63d74beb21402b8622361525ab4868"
       },
       "assets": {

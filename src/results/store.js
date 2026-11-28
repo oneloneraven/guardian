@@ -63,7 +63,7 @@ export async function saveResult(env, { target, check, result, by, at }) {
 
 /**
  * @param {{ DB: Database }} env
- * @param {{ delivery: string | null, source: "github", target: string, action: string, actor: string | null, detail: string | null, at: string }} event
+ * @param {{ delivery: string | null, source: "github" | "cloudflare", target: string, action: string, actor: string | null, detail: string | null, at: string }} event
  * @returns {Promise<boolean>} false when the delivery was already stored
  */
 export async function recordEvent(env, { delivery, source, target, action, actor, detail, at }) {

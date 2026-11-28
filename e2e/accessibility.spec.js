@@ -43,7 +43,9 @@ for (const colorScheme of ["light", "dark"]) {
         });
       }
 
-      it("/ with results, events and a record to accept has no WCAG 2.2 AA violations", async () => {
+      it("/ with results, events and a record to accept has no WCAG 2.2 AA violations", async function () {
+        // Safari's classic WebDriver can't mock requests, so this fixture-driven pass runs in Chrome and Firefox only.
+        if (!browser.isBidi) this.skip();
         await mockPage();
         const record = await browser.mock(api("/api/repositories/engage/record"), { method: "get" });
         await record.respond(RECORDS, { statusCode: 200, headers: { "Content-Type": "application/json" } });

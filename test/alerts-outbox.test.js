@@ -189,3 +189,29 @@ test("pruneAlerts keeps 89 days, and drops 91 days only when notified", async ()
     { reason: "old-pending" },
   ]);
 });
+
+test("a backlog of Cloudflare alerts raised while alerts were off isn't posted when they're switched on", async () => {
+  const { posted, fetchImpl } = discord();
+  await setSwitch("off");
+  const cloudflare = (/** @type {string} */ id) => ({
+    kind: /** @type {const} */ ("cloudflare"),
+    target: "cloudflare",
+    subject: `cf:${id}`,
+    text: `\`a dashboard user\` did ${id}`,
+  });
+  await raise(base, cloudflare("old"));
+  await env.DB.prepare("UPDATE alerts SET posted_at = '2026-11-28T10:00:00.000Z'").run();
+  await env.DB.prepare(
+    "INSERT INTO settings_audit (actor, key, from_value, to_value, changed_at, notified) VALUES ('the owner', 'check-alerts', 'false', 'true', '2026-11-28T11:00:00.000Z', 1)",
+  ).run();
+  await setSwitch("on");
+  await raise(base, cloudflare("new"));
+  await env.DB.prepare("UPDATE alerts SET posted_at = '2026-11-28T11:30:00.000Z' WHERE subject = 'cf:new'").run();
+  expect(await deliverPending(base, fetchImpl)).toBe(1);
+  expect(posted).toEqual(["`a dashboard user` did new"]);
+  const rows = (await env.DB.prepare("SELECT subject, notified FROM alerts ORDER BY id").all()).results;
+  expect(rows).toEqual([
+    { subject: "cf:old", notified: 1 },
+    { subject: "cf:new", notified: 1 },
+  ]);
+});

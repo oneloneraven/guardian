@@ -566,6 +566,7 @@ test("events are newest first and capped at 50", async () => {
     target: "engage",
     action: "deploy_key.created",
     actor: "mallory",
+    actorTokenId: null,
     detail: "event 54",
     at: new Date(Date.UTC(2026, 10, 1, 0, 54)).toISOString(),
   });

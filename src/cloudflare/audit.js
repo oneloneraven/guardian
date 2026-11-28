@@ -153,6 +153,7 @@ export async function recordAudit(env, entries, now, complete) {
       target: "cloudflare",
       action: `${entry.product}.${entry.actionType}`,
       actor,
+      actorTokenId: entry.tokenId,
       detail: detailOf(entry, actor),
       at: entry.time,
     });

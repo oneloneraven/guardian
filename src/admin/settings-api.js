@@ -513,7 +513,7 @@ export async function getResults({ env }) {
 /** @param {Context} context */
 export async function getEvents({ env }) {
   const { results } = await env.DB.prepare(
-    "SELECT target, action, actor, detail, occurred_at AS at FROM security_events ORDER BY occurred_at DESC, id DESC LIMIT 50",
+    "SELECT target, action, actor, actor_token_id AS actorTokenId, detail, occurred_at AS at FROM security_events ORDER BY occurred_at DESC, id DESC LIMIT 50",
   ).all();
   return json(200, { events: results });
 }

@@ -4,7 +4,7 @@ import { postDiscord } from "./discord.js";
  * @typedef {import("../lib/db.js").Database} Database
  * @typedef {import("./policy.js").Alert} Alert
  * @typedef {{ DB: Database, DISCORD_WEBHOOK_URL?: string }} OutboxEnv
- * @typedef {{ id: number, kind: Alert["kind"], target: string, subject: string, reason: string }} Row
+ * @typedef {{ id: number, kind: Alert["kind"], target: string, subject: string, reason: string, postedAt: string }} Row
  */
 
 const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
@@ -92,16 +92,22 @@ export async function deliverPending(env, fetchImpl) {
   const { results } = await env.DB.prepare(
     `UPDATE alerts SET claimed_at = ${NOW}
      WHERE notified = 0 AND (claimed_at IS NULL OR claimed_at < ${CLAIM_EXPIRED})
-     RETURNING id, kind, target, subject, reason`,
+     RETURNING id, kind, target, subject, reason, posted_at AS postedAt`,
   ).all();
   const rows = /** @type {Row[]} */ (/** @type {unknown} */ (results)).sort((a, b) => a.id - b.id);
+  const switchedOn = await env.DB.prepare(
+    "SELECT changed_at FROM settings_audit WHERE key = 'check-alerts' AND to_value = 'true' ORDER BY id DESC LIMIT 1",
+  ).first();
+  const since = switchedOn ? String(switchedOn.changed_at) : null;
   /** @type {Set<string>} */
   const unannounced = new Set();
   let posted = 0;
   for (const row of rows) {
     const key = `${row.target}\u0000${row.subject}`;
     const holds = await stillHolds(env, row);
-    if (row.kind === "resolved" && unannounced.delete(key)) {
+    if (row.kind === "cloudflare" && since && row.postedAt < since) {
+      await settle(env, [row.id], true);
+    } else if (row.kind === "resolved" && unannounced.delete(key)) {
       await settle(env, [row.id], true);
     } else if (!holds) {
       if (row.kind === "fail") unannounced.add(key);

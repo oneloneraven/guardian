@@ -175,3 +175,20 @@ test("a complete read moves the watermark to now", async () => {
   await recordAudit(config, entriesOf(read), NOW, /** @type {any} */ (read).complete);
   expect(await watermark()).toBe(iso(NOW));
 });
+
+test("an account token's id is stored with its event", async () => {
+  const entry = raw("t", {
+    actor: { type: "account", context: "api", token_id: "tok-123", email: "someone@example.com" },
+    action: { type: "create", result: "success", description: "Query D1 Database", time: iso(NOW) },
+    resource: { id: "db", type: "database.query", product: "d1", scope: "accounts" },
+  });
+  const entries = entriesOf(await readAudit(config, NOW, serve([{ result: [entry, raw("u")] }]).fetchImpl));
+  await recordAudit(config, entries, NOW, true);
+  const { results } = await env.DB.prepare(
+    "SELECT delivery, actor, actor_token_id FROM security_events ORDER BY delivery",
+  ).all();
+  expect(results).toEqual([
+    { delivery: "cf:t", actor: "an account token", actor_token_id: "tok-123" },
+    { delivery: "cf:u", actor: "a dashboard user", actor_token_id: null },
+  ]);
+});

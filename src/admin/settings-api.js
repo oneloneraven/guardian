@@ -4,6 +4,7 @@ import { parseRecord } from "../checks/expected.js";
 import { checkRepository } from "../checks/run.js";
 import { GithubUnavailable, installationToken } from "../github/app.js";
 import { ReadError, reader as githubReader } from "../github/reader.js";
+import { listResults, loadTitles } from "../results/read.js";
 import { changeSetting } from "../settings/store.js";
 import { loadStandard, pinStandard } from "../standard/pin.js";
 
@@ -505,29 +506,8 @@ export async function putRecord(context, name, body) {
 
 /** @param {Context} context */
 export async function getResults({ env }) {
-  const loaded = await loadStandard(env);
-  /** @type {Map<string, string>} */
-  const titles = new Map([["record-accepted", "Accepted record"]]);
-  if ("standard" in loaded) {
-    for (const check of /** @type {{ id: string, title?: string }[]} */ (loaded.standard.checks ?? [])) {
-      if (check.title && !titles.has(check.id)) titles.set(check.id, check.title);
-    }
-  }
-  const { results } = await env.DB.prepare(
-    `SELECT target, check_id AS "check", status, reason, link, checked_at AS checkedAt FROM results
-     ORDER BY CASE status WHEN 'fail' THEN 0 WHEN 'unknown' THEN 1 WHEN 'skipped' THEN 2 ELSE 3 END, target, check_id`,
-  ).all();
-  return json(200, {
-    results: results.map(row => ({
-      target: row.target,
-      check: row.check,
-      title: titles.get(String(row.check)) ?? row.check,
-      status: row.status,
-      reason: row.reason,
-      link: row.link,
-      checkedAt: row.checkedAt,
-    })),
-  });
+  const { titles } = await loadTitles(env);
+  return json(200, { results: await listResults(env, titles) });
 }
 
 /** @param {Context} context */

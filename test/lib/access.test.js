@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { adminIdentity, clearAccessKeyCache, verifyAccessJwt } from "../../src/lib/access.js";
+import { adminIdentity, clearAccessKeyCache, serviceIdentity, verifyAccessJwt } from "../../src/lib/access.js";
 
 const TEAM = "example.cloudflareaccess.com";
 const AUD = "test-audience";
@@ -148,5 +148,55 @@ describe("adminIdentity", () => {
     expect(await adminIdentity(bare, { ...off, APP_ENV: "development" })).toEqual({ email: "dev@localhost" });
     expect(await adminIdentity(bare, { ...off, APP_ENV: "production" })).toBeNull();
     expect(await adminIdentity(bare, { ...off, APP_ENV: "preview" })).toBeNull();
+  });
+});
+
+describe("serviceIdentity", () => {
+  const CLIENT = "engage-client.access";
+  const AUDIENCE = "results-audience";
+  const service = { ACCESS_TEAM_DOMAIN: TEAM, ACCESS_RESULTS_AUD: AUDIENCE, RESULTS_CLIENT_ID: CLIENT };
+  const options = () => ({ fetchImpl: certs(), nowS: NOW });
+  const request = (/** @type {string} */ token) =>
+    new Request("https://api.example.test/v1/results", { headers: { "Cf-Access-Jwt-Assertion": token } });
+  const serviceToken = (/** @type {object} */ claims = {}) =>
+    sign({ aud: [AUDIENCE], email: undefined, common_name: CLIENT, type: "app", ...claims });
+
+  it("a service token for the results application is accepted", async () => {
+    expect(await serviceIdentity(request(await serviceToken()), service, options())).toEqual({ clientId: CLIENT });
+  });
+
+  it("the owner's JWT is refused", async () => {
+    const owner = await sign({ aud: [AUDIENCE] });
+    expect(await serviceIdentity(request(owner), service, options())).toBeNull();
+  });
+
+  it("a token with another audience is refused", async () => {
+    const other = await serviceToken({ aud: [AUD] });
+    expect(await serviceIdentity(request(other), service, options())).toBeNull();
+  });
+
+  it("a service token for another client is refused", async () => {
+    const other = await serviceToken({ common_name: "someone-else.access" });
+    expect(await serviceIdentity(request(other), service, options())).toBeNull();
+  });
+
+  it("a missing RESULTS_CLIENT_ID refuses everything", async () => {
+    const token = await serviceToken();
+    for (const missing of [{ RESULTS_CLIENT_ID: "" }, { RESULTS_CLIENT_ID: undefined }]) {
+      expect(await serviceIdentity(request(token), { ...service, ...missing }, options())).toBeNull();
+    }
+    expect(await serviceIdentity(request(token), { ...service, ACCESS_RESULTS_AUD: "" }, options())).toBeNull();
+    expect(await serviceIdentity(request(token), { ...service, ACCESS_TEAM_DOMAIN: "" }, options())).toBeNull();
+  });
+
+  it("a request with no token, or an expired one, is refused", async () => {
+    expect(await serviceIdentity(new Request("https://api.example.test/v1/results"), service, options())).toBeNull();
+    const expired = await serviceToken({ exp: NOW - 61 });
+    expect(await serviceIdentity(request(expired), service, options())).toBeNull();
+  });
+
+  it("never skips the check, even in e2e", async () => {
+    const env = { ...service, APP_ENV: "e2e", ADMIN_ACCESS_CHECK: "off" };
+    expect(await serviceIdentity(new Request("https://localhost/v1/results"), env)).toBeNull();
   });
 });

@@ -48,12 +48,14 @@ async function findKey(kid, teamDomain, fetchImpl) {
   return (await fetchKeys(teamDomain, fetchImpl)).find(key => key.kid === kid);
 }
 
+/** @typedef {{ teamDomain: string, aud: string, fetchImpl?: typeof fetch, nowS?: number }} VerifyOptions */
+
 /**
  * @param {string} token
- * @param {{ teamDomain: string, aud: string, fetchImpl?: typeof fetch, nowS?: number }} options
- * @returns {Promise<AccessIdentity | null>}
+ * @param {VerifyOptions} options
+ * @returns {Promise<Record<string, unknown> | null>} the claims of a token with a valid signature, audience, issuer and lifetime
  */
-export async function verifyAccessJwt(token, { teamDomain, aud, fetchImpl = fetch, nowS = Date.now() / 1000 }) {
+async function verifiedClaims(token, { teamDomain, aud, fetchImpl = fetch, nowS = Date.now() / 1000 }) {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
@@ -75,11 +77,20 @@ export async function verifyAccessJwt(token, { teamDomain, aud, fetchImpl = fetc
     if (payload.iss !== `https://${teamDomain}`) return null;
     if (typeof payload.exp !== "number" || payload.exp + CLOCK_SKEW_S < nowS) return null;
     if (typeof payload.nbf === "number" && payload.nbf - CLOCK_SKEW_S > nowS) return null;
-    if (typeof payload.email !== "string" || !payload.email) return null;
-    return { email: payload.email };
+    return payload;
   } catch {
     return null;
   }
+}
+
+/**
+ * @param {string} token
+ * @param {VerifyOptions} options
+ * @returns {Promise<AccessIdentity | null>}
+ */
+export async function verifyAccessJwt(token, options) {
+  const claims = await verifiedClaims(token, options);
+  return typeof claims?.email === "string" && claims.email ? { email: claims.email } : null;
 }
 
 /**
@@ -102,6 +113,21 @@ export async function adminIdentity(request, env, options = {}) {
     ...options,
   });
   return identity?.email.toLowerCase() === owner ? identity : null;
+}
+
+/**
+ * The verified Access service token behind a request to the results API, or null. A user's token has no common_name.
+ * @param {Request} request
+ * @param {{ ACCESS_TEAM_DOMAIN?: string, ACCESS_RESULTS_AUD?: string, RESULTS_CLIENT_ID?: string }} env
+ * @param {{ fetchImpl?: typeof fetch, nowS?: number }} [options]
+ * @returns {Promise<{ clientId: string } | null>}
+ */
+export async function serviceIdentity(request, env, options = {}) {
+  const token = request.headers.get("Cf-Access-Jwt-Assertion");
+  const { ACCESS_TEAM_DOMAIN: teamDomain, ACCESS_RESULTS_AUD: aud, RESULTS_CLIENT_ID: clientId } = env;
+  if (!token || !teamDomain || !aud || !clientId) return null;
+  const claims = await verifiedClaims(token, { teamDomain, aud, ...options });
+  return claims?.common_name === clientId ? { clientId } : null;
 }
 
 export function clearAccessKeyCache() {

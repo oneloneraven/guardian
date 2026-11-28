@@ -1,14 +1,15 @@
 import { routeAdmin } from "./admin/router.js";
+import { routeResults } from "./api/results.js";
 import { runScheduled } from "./cron.js";
 import { handleGithubWebhook } from "./github/webhook.js";
-import { adminIdentity } from "./lib/access.js";
+import { adminIdentity, serviceIdentity } from "./lib/access.js";
 
 const notFound = () => new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
 
 export default {
   /**
    * @param {Request} request
-   * @param {{ ASSETS: { fetch: (request: Request) => Promise<Response> }, APP_ENV: string, RELEASE_VERSION?: string, ADMIN_HOST?: string, ADMIN_ACCESS_CHECK?: string, ACCESS_TEAM_DOMAIN?: string, ACCESS_AUD?: string, OWNER_EMAIL?: string, DISCORD_WEBHOOK_URL?: string, GITHUB_WEBHOOK_SECRET?: string, GITHUB_ORG?: string, GITHUB_APP_ID?: string, GITHUB_APP_PRIVATE_KEY?: string, DB: import("./lib/db.js").Database }} env
+   * @param {{ ASSETS: { fetch: (request: Request) => Promise<Response> }, APP_ENV: string, RELEASE_VERSION?: string, ADMIN_HOST?: string, ADMIN_ACCESS_CHECK?: string, ACCESS_TEAM_DOMAIN?: string, ACCESS_AUD?: string, ACCESS_RESULTS_AUD?: string, RESULTS_CLIENT_ID?: string, OWNER_EMAIL?: string, DISCORD_WEBHOOK_URL?: string, GITHUB_WEBHOOK_SECRET?: string, GITHUB_ORG?: string, GITHUB_APP_ID?: string, GITHUB_APP_PRIVATE_KEY?: string, DB: import("./lib/db.js").Database }} env
    * @param {{ waitUntil: (promise: Promise<unknown>) => void }} ctx
    * @returns {Promise<Response>}
    */
@@ -28,6 +29,12 @@ export default {
       return env.ASSETS.fetch(request);
     }
     if (pathname === "/v1/github/webhook") return handleGithubWebhook(request, env, ctx);
+    if (pathname.startsWith("/v1/")) {
+      if (!(await serviceIdentity(request, env))) {
+        return Response.json({ error: "Forbidden" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+      }
+      return routeResults(request, env);
+    }
     return notFound();
   },
 

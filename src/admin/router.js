@@ -2,6 +2,9 @@ import { describeActor } from "../settings/store.js";
 import {
   deleteException,
   deleteToken,
+  getEvents,
+  getRecord,
+  getResults,
   Invalid,
   json,
   postException,
@@ -9,6 +12,7 @@ import {
   postToken,
   putAlerts,
   putNames,
+  putRecord,
   putRepository,
   readSettings,
 } from "./settings-api.js";
@@ -22,6 +26,15 @@ const ROUTES = [
   { pattern: /^\/api\/owners$/, methods: { PUT: (context, body) => putNames(context, "owners", body) } },
   { pattern: /^\/api\/alerts$/, methods: { PUT: putAlerts } },
   { pattern: /^\/api\/apps$/, methods: { PUT: (context, body) => putNames(context, "apps", body) } },
+  { pattern: /^\/api\/results$/, methods: { GET: getResults } },
+  { pattern: /^\/api\/events$/, methods: { GET: getEvents } },
+  {
+    pattern: /^\/api\/repositories\/([^/]+)\/record$/,
+    methods: {
+      GET: (context, _body, name) => getRecord(context, name),
+      PUT: (context, body, name) => putRecord(context, name, body),
+    },
+  },
   {
     pattern: /^\/api\/repositories\/([^/]+)$/,
     methods: { PUT: (context, body, name) => putRepository(context, name, body) },
@@ -68,12 +81,13 @@ async function readBody(request) {
 
 /**
  * @param {Request} request
- * @param {import("../settings/store.js").SettingsEnv} env
+ * @param {import("../checks/run.js").RunEnv} env
  * @param {{ email: string }} identity
  * @param {typeof fetch} [fetchImpl]
+ * @param {{ readerFor?: () => Promise<import("../github/reader.js").Reader>, waitUntil?: (promise: Promise<unknown>) => void }} [options]
  * @returns {Promise<Response>}
  */
-export async function routeAdmin(request, env, identity, fetchImpl) {
+export async function routeAdmin(request, env, identity, fetchImpl, options = {}) {
   if (describeActor(env, identity.email) !== "the owner") return json(403, { error: "Forbidden" });
   const { pathname } = new URL(request.url);
   for (const { pattern, methods } of ROUTES) {
@@ -84,7 +98,7 @@ export async function routeAdmin(request, env, identity, fetchImpl) {
     const body = request.method === "GET" ? {} : await readBody(request);
     if (body instanceof Response) return body;
     try {
-      return await handler({ env, email: identity.email, fetchImpl }, body, decode(match[1] ?? ""));
+      return await handler({ env, email: identity.email, fetchImpl, ...options }, body, decode(match[1] ?? ""));
     } catch (error) {
       if (error instanceof Invalid) return json(400, { error: error.message });
       console.error("Admin API failed", request.method, pathname, error instanceof Error ? error.message : error);

@@ -1,15 +1,35 @@
+import { deliverPending } from "../alerts/outbox.js";
+import { raiseFor } from "../alerts/raise-for.js";
+import { parseRecord } from "../checks/expected.js";
+import { checkRepository } from "../checks/run.js";
+import { GithubUnavailable, installationToken } from "../github/app.js";
+import { ReadError, reader as githubReader } from "../github/reader.js";
 import { changeSetting } from "../settings/store.js";
 import { loadStandard, pinStandard } from "../standard/pin.js";
 
 /** @typedef {import("../settings/store.js").SettingsEnv} SettingsEnv */
-/** @typedef {{ env: SettingsEnv, email: string, fetchImpl?: typeof fetch }} Context */
+/** @typedef {import("../github/reader.js").Reader} Reader */
+/**
+ * @typedef {{
+ *   env: import("../checks/run.js").RunEnv,
+ *   email: string,
+ *   fetchImpl?: typeof fetch,
+ *   readerFor?: () => Promise<Reader>,
+ *   waitUntil?: (promise: Promise<unknown>) => void,
+ * }} Context
+ */
 
 const LOGIN = /^[A-Za-z0-9-]{1,39}$/;
 const REPOSITORY = /^[A-Za-z0-9._-]{1,100}$/;
 const CHECK = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const TOKEN_ID = /^[A-Za-z0-9]{1,64}$/;
+const BLOB_SHA = /^[0-9a-f]{40}$/;
+const RECORD_PATH = ".bootstrap/record.json";
+const RECORD_UNREADABLE = "Couldn't read the record from GitHub: try again in a minute.";
 
 export class Invalid extends Error {}
+
+class Unreadable extends Error {}
 
 /**
  * @param {number} status
@@ -339,4 +359,181 @@ export async function postStandard({ env, email, fetchImpl }, body) {
     fetchImpl,
   );
   return result.ok ? json(200, { ok: true }) : json(422, { error: result.reason });
+}
+
+/**
+ * @param {import("../checks/expected.js").AcceptedRecord} record
+ * @param {string} sha
+ */
+const shown = (record, sha) => ({ sha, modules: record.modules, flags: record.flags });
+
+/**
+ * @param {Context} context
+ * @returns {Promise<Reader>}
+ */
+async function recordReader({ env, readerFor }) {
+  try {
+    return readerFor ? await readerFor() : githubReader(await installationToken(env));
+  } catch (error) {
+    if (error instanceof GithubUnavailable) throw new Unreadable();
+    throw error;
+  }
+}
+
+/**
+ * @param {Context} context
+ * @param {string} name
+ * @returns {Promise<{ row: Record<string, unknown> } | { missing: true }>}
+ */
+async function knownRepository({ env }, name) {
+  const row = REPOSITORY.test(name)
+    ? await env.DB.prepare("SELECT name, accepted_record_sha FROM repositories WHERE name = ?1").bind(name).first()
+    : null;
+  return row ? { row } : { missing: true };
+}
+
+/**
+ * The live record as GitHub has it now, or null when the repository has none.
+ * @param {Context} context
+ * @param {Reader} read
+ * @param {string} name
+ * @returns {Promise<{ sha: string, record: import("../checks/expected.js").AcceptedRecord | null } | null>}
+ */
+async function liveRecord({ env }, read, name) {
+  const repo = `${env.GITHUB_ORG || "oneloneraven"}/${name}`;
+  const { status, body } = await read.get(`/repos/${repo}`);
+  if (status !== 200) throw new Unreadable();
+  /** @type {{ text: string, sha: string } | null} */
+  let file;
+  try {
+    file = await read.file(repo, RECORD_PATH, body.default_branch);
+  } catch (error) {
+    if (error instanceof ReadError) throw new Unreadable();
+    throw error;
+  }
+  if (!file) return null;
+  try {
+    return { sha: file.sha, record: parseRecord(file.text) };
+  } catch {
+    return { sha: file.sha, record: null };
+  }
+}
+
+/**
+ * @param {Context} context
+ * @param {Reader} read
+ * @param {string} name
+ * @param {unknown} sha
+ * @returns {Promise<{ sha: string, modules: string[], flags: Record<string, boolean> } | null>}
+ */
+async function acceptedRecord({ env }, read, name, sha) {
+  if (typeof sha !== "string" || !sha) return null;
+  try {
+    const text = await read.blob(`${env.GITHUB_ORG || "oneloneraven"}/${name}`, sha);
+    return text === null ? null : shown(parseRecord(text), sha);
+  } catch (error) {
+    if (error instanceof ReadError) throw new Unreadable();
+    return null;
+  }
+}
+
+/**
+ * @param {Context} context
+ * @param {string} name
+ */
+export async function getRecord(context, name) {
+  const known = await knownRepository(context, name);
+  if ("missing" in known) return json(404, { error: "No such repository" });
+  try {
+    const read = await recordReader(context);
+    const live = await liveRecord(context, read, name);
+    if (live && !live.record) return json(422, { error: "The record in the repository isn't a valid record" });
+    return json(200, {
+      accepted: await acceptedRecord(context, read, name, known.row.accepted_record_sha),
+      live: live?.record ? shown(live.record, live.sha) : null,
+    });
+  } catch (error) {
+    if (error instanceof Unreadable) return json(502, { error: RECORD_UNREADABLE });
+    throw error;
+  }
+}
+
+/**
+ * @param {Context} context
+ * @param {string} name
+ * @param {Record<string, unknown>} body
+ */
+export async function putRecord(context, name, body) {
+  const { env, email, fetchImpl, waitUntil } = context;
+  const sha = body.sha;
+  if (typeof sha !== "string" || !BLOB_SHA.test(sha)) throw new Invalid("sha must be a commit blob sha");
+  const known = await knownRepository(context, name);
+  if ("missing" in known) return json(404, { error: "No such repository" });
+  let read;
+  try {
+    read = await recordReader(context);
+    const live = await liveRecord(context, read, name);
+    if (!live || live.sha !== sha) return json(409, { error: "The record changed again: reload" });
+    if (!live.record) return json(422, { error: "The record in the repository isn't a valid record" });
+  } catch (error) {
+    if (error instanceof Unreadable) return json(502, { error: RECORD_UNREADABLE });
+    throw error;
+  }
+  await changeSetting(
+    env,
+    {
+      email,
+      key: "records",
+      from: known.row.accepted_record_sha ?? null,
+      to: { name, sha },
+      apply: db => [db.prepare("UPDATE repositories SET accepted_record_sha = ?1 WHERE name = ?2").bind(sha, name)],
+    },
+    fetchImpl,
+  );
+  const recheck = (async () => {
+    try {
+      await raiseFor(env, await checkRepository(env, /** @type {Reader} */ (read), name, "event"));
+      await deliverPending(env, fetchImpl);
+    } catch (error) {
+      console.error("Re-check after accepting a record failed", error instanceof Error ? error.message : error);
+    }
+  })();
+  if (waitUntil) waitUntil(recheck);
+  else await recheck;
+  return json(200, { ok: true });
+}
+
+/** @param {Context} context */
+export async function getResults({ env }) {
+  const loaded = await loadStandard(env);
+  /** @type {Map<string, string>} */
+  const titles = new Map([["record-accepted", "Accepted record"]]);
+  if ("standard" in loaded) {
+    for (const check of /** @type {{ id: string, title?: string }[]} */ (loaded.standard.checks ?? [])) {
+      if (check.title && !titles.has(check.id)) titles.set(check.id, check.title);
+    }
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT target, check_id AS "check", status, reason, link, checked_at AS checkedAt FROM results
+     ORDER BY CASE status WHEN 'fail' THEN 0 WHEN 'unknown' THEN 1 WHEN 'skipped' THEN 2 ELSE 3 END, target, check_id`,
+  ).all();
+  return json(200, {
+    results: results.map(row => ({
+      target: row.target,
+      check: row.check,
+      title: titles.get(String(row.check)) ?? row.check,
+      status: row.status,
+      reason: row.reason,
+      link: row.link,
+      checkedAt: row.checkedAt,
+    })),
+  });
+}
+
+/** @param {Context} context */
+export async function getEvents({ env }) {
+  const { results } = await env.DB.prepare(
+    "SELECT target, action, actor, detail, occurred_at AS at FROM security_events ORDER BY occurred_at DESC, id DESC LIMIT 50",
+  ).all();
+  return json(200, { events: results });
 }

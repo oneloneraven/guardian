@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { $, browser, expect } from "@wdio/globals";
+import { api, mockPage, RECORDS } from "./fixtures.js";
 
 const WCAG_22_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 const PAGES = ["/"];
@@ -41,6 +42,21 @@ for (const colorScheme of ["light", "dark"]) {
           expect(await violations()).toEqual([]);
         });
       }
+
+      it("/ with results, events and a record to accept has no WCAG 2.2 AA violations", async () => {
+        await mockPage();
+        const record = await browser.mock(api("/api/repositories/engage/record"), { method: "get" });
+        await record.respond(RECORDS, { statusCode: 200, headers: { "Content-Type": "application/json" } });
+        await browser.url("/");
+        const row = $('li[data-repository="engage"]');
+        await row.waitForExist();
+        await row.$("button=Show changes").click();
+        await row.$("button=Accept this record").waitForClickable();
+        await row.$("button=Accept this record").click();
+        await expect(row.$(".record-detail")).toHaveText(expect.stringContaining("Accept this record for engage?"));
+        expect(await violations()).toEqual([]);
+        await browser.mockRestoreAll();
+      });
     });
   }
 }

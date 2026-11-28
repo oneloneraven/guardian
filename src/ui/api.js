@@ -4,6 +4,9 @@
  * @typedef {{ id: number, target: string, check: string, match: string | null, reason: string, createdAt: string }} Exception
  * @typedef {{ tokenId: string, name: string, purpose: string, repository: string | null }} KnownToken
  * @typedef {{ id: number, actor: string, key: string, from: unknown, to: unknown, changedAt: string, notified: boolean }} AuditEntry
+ * @typedef {{ sha: string, modules: string[], flags: Record<string, boolean> }} RecordView
+ * @typedef {{ target: string, check: string, title: string, status: "fail" | "unknown" | "skipped" | "pass", reason: string | null, link: string | null, checkedAt: string }} Result
+ * @typedef {{ target: string, action: string, actor: string | null, detail: string | null, at: string }} SecurityEvent
  * @typedef {{ standard: StandardState, owners: string[], apps: string[], alerts: { enabled: boolean }, repositories: Repository[], exceptions: Exception[], tokens: KnownToken[], audit: AuditEntry[] }} Settings
  */
 
@@ -42,7 +45,10 @@ async function request(method, path, body) {
   if (response.type === "opaqueredirect" || response.status === 403 || response.status === 404) {
     throw new ApiError(SIGNED_OUT);
   }
-  if ((response.status === 400 || response.status === 409 || response.status === 422) && payload?.error) {
+  if (
+    (response.status === 400 || response.status === 409 || response.status === 422 || response.status === 502) &&
+    payload?.error
+  ) {
     throw new ApiError(String(payload.error));
   }
   throw new ApiError(FAILED);
@@ -81,3 +87,22 @@ export const removeToken = tokenId => request("DELETE", `/api/tokens/${encodeURI
 
 /** @param {boolean} enabled */
 export const putAlerts = enabled => request("PUT", "/api/alerts", { enabled });
+
+/** @returns {Promise<Result[]>} */
+export const getResults = async () => (await request("GET", "/api/results")).results;
+
+/** @returns {Promise<SecurityEvent[]>} */
+export const getEvents = async () => (await request("GET", "/api/events")).events;
+
+/**
+ * @param {string} name
+ * @returns {Promise<{ accepted: RecordView | null, live: RecordView | null }>}
+ */
+export const getRecord = name => request("GET", `/api/repositories/${encodeURIComponent(name)}/record`);
+
+/**
+ * @param {string} name
+ * @param {string} sha
+ */
+export const acceptRecord = (name, sha) =>
+  request("PUT", `/api/repositories/${encodeURIComponent(name)}/record`, { sha });

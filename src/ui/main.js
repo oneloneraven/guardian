@@ -1,4 +1,4 @@
-import { getSettings } from "./api.js";
+import { getEvents, getResults, getSettings } from "./api.js";
 import { h } from "./dom.js";
 import { renderSettings } from "./settings-page.js";
 
@@ -10,8 +10,12 @@ const root = /** @type {HTMLElement} */ (document.getElementById("settings"));
  */
 async function load(section, message) {
   try {
-    const settings = await getSettings();
-    renderSettings(root, { settings, reload: load });
+    const [settings, results, events] = await Promise.all([
+      getSettings(),
+      getResults().catch(() => null),
+      getEvents().catch(() => null),
+    ]);
+    renderSettings(root, { settings, results, events, reload: load });
     if (section && message) {
       const target = root.querySelector(`#${section}`);
       const status = target?.querySelector(".saved");

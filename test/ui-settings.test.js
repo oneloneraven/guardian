@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { checkException, checkPin, checkToken, parseNames, describeChange } from "../src/ui/validate.js";
+import { checkException, checkPin, checkToken, parseNames, describeChange, diffRecords } from "../src/ui/validate.js";
 
 test("an exception needs a target, a check and a reason", () => {
   expect(checkException({ target: "", check: "", match: "", reason: "  " })).toEqual({
@@ -66,4 +66,18 @@ test("an audit entry reads as one plain line", () => {
     "The owner turned check alerts off",
   );
   expect(describeChange({ actor: "the owner", key: "something-new", to: 1 })).toBe("The owner changed something-new");
+});
+
+test("a record diff lists modules added and removed, and the flags that changed", () => {
+  const accepted = { modules: ["core", "web-app"], flags: { beta: false, admin: true } };
+  const live = { modules: ["core", "js-toolchain"], flags: { beta: true, admin: true, d1: false } };
+  expect(diffRecords(accepted, live)).toEqual({
+    modules: "Modules: +js-toolchain \u2212web-app",
+    flags: "Flags: beta: false \u2192 true",
+  });
+  expect(diffRecords(accepted, accepted)).toEqual({ modules: "Modules: no change", flags: "Flags: no change" });
+  expect(diffRecords(null, { modules: ["core"], flags: { beta: true } })).toEqual({
+    modules: "Modules: +core",
+    flags: "Flags: beta: false \u2192 true",
+  });
 });

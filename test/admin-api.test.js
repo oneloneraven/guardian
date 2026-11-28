@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, expect, test } from "vitest";
+import { GithubUnavailable } from "../src/github/app.js";
 import { routeAdmin } from "../src/admin/router.js";
 import real from "./fixtures/standard-v1.18.0.json?raw";
 
@@ -51,16 +52,23 @@ function call(method, path, body, headers = {}) {
  * @param {{ email: string }} [identity]
  * @param {typeof fetch} [fetchImpl]
  */
-const send = (request, identity = owner, fetchImpl = outbound().fetchImpl) =>
-  routeAdmin(request, base, identity, fetchImpl);
+const send = (request, identity = owner, fetchImpl = outbound().fetchImpl, options = undefined) =>
+  routeAdmin(request, base, identity, fetchImpl, options);
 
 const auditCount = async () => (await env.DB.prepare("SELECT count(*) AS n FROM settings_audit").first())?.n;
 
 beforeEach(async () => {
   await env.DB.batch(
-    ["settings", "settings_audit", "standard", "repositories", "exceptions", "known_tokens"].map(t =>
-      env.DB.prepare(`DELETE FROM ${t}`),
-    ),
+    [
+      "settings",
+      "settings_audit",
+      "standard",
+      "repositories",
+      "exceptions",
+      "known_tokens",
+      "results",
+      "security_events",
+    ].map(t => env.DB.prepare(`DELETE FROM ${t}`)),
   );
 });
 
@@ -75,6 +83,10 @@ const ROUTES = [
   ["POST", "/api/tokens", { tokenId: "abc123", name: "Engage Deploy", purpose: "Deploys Engage" }],
   ["DELETE", "/api/tokens/abc123", undefined],
   ["POST", "/api/standard", { version: "v1.18.0", sha256: REAL_SHA }],
+  ["GET", "/api/results", undefined],
+  ["GET", "/api/events", undefined],
+  ["GET", "/api/repositories/engage/record", undefined],
+  ["PUT", "/api/repositories/engage/record", { sha: "a".repeat(40) }],
   ["GET", "/api/nowhere", undefined],
 ];
 
@@ -342,4 +354,220 @@ test("a mutation from the page's own origin is accepted, port included", async (
     body: JSON.stringify({ values: ["raven"] }),
   });
   expect((await send(elsewhere)).status).toBe(403);
+});
+
+const OLD = "a".repeat(40);
+const NEW = "b".repeat(40);
+const record = (/** @type {object} */ changes) =>
+  JSON.stringify({
+    version: 1,
+    modules: ["core"],
+    visibility: "public",
+    flags: {},
+    skipped: {},
+    exceptions: [],
+    ...changes,
+  });
+
+/** @param {{ status?: number, live?: { text: string, sha: string } | null, blobs?: Record<string, string> }} [options] */
+function githubReader({ status = 200, live = { text: record({}), sha: NEW }, blobs = {} } = {}) {
+  return async () => ({
+    /** @param {string} path */
+    async get(path) {
+      if (path === "/repos/oneloneraven/engage") {
+        return { status, body: status === 200 ? { default_branch: "main", visibility: "public" } : null };
+      }
+      if (path === "/orgs/oneloneraven") return { status: 200, body: { plan: { name: "Free" } } };
+      return { status: 404, body: null };
+    },
+    async all() {
+      return { status: 404, items: [] };
+    },
+    async file() {
+      return live;
+    },
+    /** @param {string} _repo @param {string} sha */
+    async blob(_repo, sha) {
+      return blobs[sha] ?? null;
+    },
+  });
+}
+
+const addEngage = (/** @type {string | null} */ accepted = null) =>
+  env.DB.prepare(
+    "INSERT INTO repositories (name, expected_visibility, accepted_record_sha) VALUES ('engage', 'public', ?1)",
+  )
+    .bind(accepted)
+    .run();
+
+test("GET /api/repositories/:name/record returns the accepted and live records, parsed", async () => {
+  await addEngage(OLD);
+  const readerFor = githubReader({
+    live: { text: record({ modules: ["core", "web-app"], flags: { beta: true } }), sha: NEW },
+    blobs: { [OLD]: record({}) },
+  });
+  const response = await send(call("GET", "/api/repositories/engage/record"), owner, undefined, { readerFor });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    accepted: { sha: OLD, modules: ["core"], flags: {} },
+    live: { sha: NEW, modules: ["core", "web-app"], flags: { beta: true } },
+  });
+});
+
+test("GET /api/repositories/:name/record has no accepted record before one is accepted, and 404s an unknown repository", async () => {
+  await addEngage();
+  const readerFor = githubReader();
+  const first = await send(call("GET", "/api/repositories/engage/record"), owner, undefined, { readerFor });
+  expect(await first.json()).toMatchObject({ accepted: null, live: { sha: NEW } });
+  const unknown = await send(call("GET", "/api/repositories/nope/record"), owner, undefined, { readerFor });
+  expect(unknown.status).toBe(404);
+});
+
+test("GET /api/repositories/:name/record answers 502 when GitHub can't be read", async () => {
+  await addEngage();
+  for (const status of [0, 403, 500]) {
+    const response = await send(call("GET", "/api/repositories/engage/record"), owner, undefined, {
+      readerFor: githubReader({ status }),
+    });
+    expect(response.status, String(status)).toBe(502);
+    expect(await response.json()).toEqual({ error: "Couldn't read the record from GitHub: try again in a minute." });
+  }
+  const unavailable = await send(call("GET", "/api/repositories/engage/record"), owner, undefined, {
+    readerFor: async () => {
+      throw new GithubUnavailable("github-app-not-configured");
+    },
+  });
+  expect(unavailable.status).toBe(502);
+});
+
+test("accepting a record that changed since the page loaded answers 409", async () => {
+  await addEngage(OLD);
+  const response = await send(
+    call("PUT", "/api/repositories/engage/record", { sha: "c".repeat(40) }),
+    owner,
+    undefined,
+    {
+      readerFor: githubReader(),
+    },
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "The record changed again: reload" });
+  expect((await env.DB.prepare("SELECT accepted_record_sha FROM repositories").first())?.accepted_record_sha).toBe(OLD);
+  expect(await auditCount()).toBe(0);
+});
+
+test("accepting a record needs a 40-character sha and a known repository", async () => {
+  await addEngage();
+  const readerFor = githubReader();
+  for (const sha of ["abc", "G".repeat(40), 7, undefined]) {
+    const response = await send(call("PUT", "/api/repositories/engage/record", { sha }), owner, undefined, {
+      readerFor,
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "sha must be a commit blob sha" });
+  }
+  const unknown = await send(call("PUT", "/api/repositories/nope/record", { sha: NEW }), owner, undefined, {
+    readerFor,
+  });
+  expect(unknown.status).toBe(404);
+});
+
+test("accepting the live record is audited, announced, and makes record-accepted Pass on the next check", async () => {
+  const out = outbound();
+  await send(call("POST", "/api/standard", { version: "v1.18.0", sha256: REAL_SHA }), owner, out.fetchImpl);
+  await addEngage(OLD);
+  /** @type {Promise<unknown>[]} */
+  const pending = [];
+  const readerFor = githubReader({ blobs: { [OLD]: record({ modules: [] }) } });
+  const response = await send(call("PUT", "/api/repositories/engage/record", { sha: NEW }), owner, out.fetchImpl, {
+    readerFor,
+    waitUntil: promise => void pending.push(promise),
+  });
+  expect(response.status).toBe(200);
+  expect((await env.DB.prepare("SELECT accepted_record_sha FROM repositories").first())?.accepted_record_sha).toBe(NEW);
+  const audit = (
+    await env.DB.prepare("SELECT key, from_value, to_value, notified FROM settings_audit WHERE key = 'records'").all()
+  ).results;
+  expect(audit).toEqual([
+    {
+      key: "records",
+      from_value: JSON.stringify(OLD),
+      to_value: JSON.stringify({ name: "engage", sha: NEW }),
+      notified: 1,
+    },
+  ]);
+  expect(out.posted.at(-1)).toBe(`Guardian settings: the owner changed records: https://${HOST}/`);
+  await Promise.allSettled(pending);
+  expect(
+    (
+      await env.DB.prepare(
+        "SELECT status FROM results WHERE target = 'engage' AND check_id = 'record-accepted'",
+      ).first()
+    )?.status,
+  ).toBe("pass");
+});
+
+test("results are ordered with failures first", async () => {
+  const insert = (/** @type {string} */ target, /** @type {string} */ check, /** @type {string} */ status) =>
+    env.DB.prepare(
+      "INSERT INTO results (target, check_id, status, reason, link, checked_at, changed_at, changed_by) VALUES (?1, ?2, ?3, 'why', 'https://github.com/x', 'now', 'now', 'sweep')",
+    )
+      .bind(target, check, status)
+      .run();
+  await insert("b", "visibility", "pass");
+  await insert("a", "visibility", "unknown");
+  await insert("b", "deploy-keys", "fail");
+  await insert("a", "webhooks", "skipped");
+  await insert("a", "deploy-keys", "fail");
+  const body = await (await send(call("GET", "/api/results"))).json();
+  expect(body.results.map((/** @type {any} */ row) => `${row.status}:${row.target}/${row.check}`)).toEqual([
+    "fail:a/deploy-keys",
+    "fail:b/deploy-keys",
+    "unknown:a/visibility",
+    "skipped:a/webhooks",
+    "pass:b/visibility",
+  ]);
+  expect(body.results[0]).toEqual({
+    target: "a",
+    check: "deploy-keys",
+    title: "deploy-keys",
+    status: "fail",
+    reason: "why",
+    link: "https://github.com/x",
+    checkedAt: "now",
+  });
+});
+
+test("results carry the standard's check title when one is pinned", async () => {
+  const out = outbound();
+  await send(call("POST", "/api/standard", { version: "v1.18.0", sha256: REAL_SHA }), owner, out.fetchImpl);
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO results (target, check_id, status, reason, checked_at, changed_at, changed_by) VALUES ('a', 'deploy-keys', 'fail', 'x', 'now', 'now', 'sweep')",
+    ),
+    env.DB.prepare(
+      "INSERT INTO results (target, check_id, status, reason, checked_at, changed_at, changed_by) VALUES ('a', 'record-accepted', 'fail', 'x', 'now', 'now', 'sweep')",
+    ),
+  ]);
+  const body = await (await send(call("GET", "/api/results"))).json();
+  expect(body.results.map((/** @type {any} */ row) => row.title).sort()).toEqual(["Accepted record", "Deploy keys"]);
+});
+
+test("events are newest first and capped at 50", async () => {
+  const statements = Array.from({ length: 55 }, (_, index) =>
+    env.DB.prepare(
+      "INSERT INTO security_events (source, target, action, actor, detail, occurred_at) VALUES ('github', 'engage', 'deploy_key.created', 'mallory', ?1, ?2)",
+    ).bind(`event ${index}`, new Date(Date.UTC(2026, 10, 1, 0, index)).toISOString()),
+  );
+  await env.DB.batch(statements);
+  const body = await (await send(call("GET", "/api/events"))).json();
+  expect(body.events).toHaveLength(50);
+  expect(body.events[0]).toEqual({
+    target: "engage",
+    action: "deploy_key.created",
+    actor: "mallory",
+    detail: "event 54",
+    at: new Date(Date.UTC(2026, 10, 1, 0, 54)).toISOString(),
+  });
+  expect(body.events[49].detail).toBe("event 5");
 });

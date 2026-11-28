@@ -16,15 +16,14 @@ updates it in the same PR.
 | Data | Purpose | Lawful basis | Retention | Who can see it |
 |---|---|---|---|---|
 | Security events: the GitHub login of the person who changed the organisation's or a repository's settings, the action, the target and the time | Spotting unexpected changes to what Guardian watches | Legitimate interests | 90 days, then deleted | The owner |
-| Alerts: the same GitHub login, where it appears in the alert's text | Telling the owner about a failure or an unexpected change | Legitimate interests | Kept indefinitely: alert records aren't pruned yet. The Discord message stays in Discord | The owner, and whoever can read the Discord channel |
+| Alerts: the same GitHub login, where it appears in the alert's text | Telling the owner about a failure or an unexpected change | Legitimate interests | 90 days after the alert is posted, once it has been sent or dropped; the Discord message stays in Discord | The owner, and whoever can read the Discord channel |
 
 Guardian stores no email addresses from GitHub. An invitation sent to an email
 address is recorded as "an email address".
 
 ## Gaps to settle
 
-- **Alert records have no retention.** They can hold a GitHub login in their
-  text, so they need a period like the security events have.
+None recorded yet.
 
 ## Security measures
 

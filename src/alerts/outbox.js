@@ -119,3 +119,16 @@ export async function deliverPending(env, fetchImpl) {
   }
   return posted;
 }
+
+const RETENTION_DAYS = 90;
+
+/**
+ * @param {OutboxEnv} env
+ * @param {Date | string | number} now
+ * @returns {Promise<number>}
+ */
+export async function pruneAlerts(env, now) {
+  const cutoff = new Date(new Date(now).getTime() - RETENTION_DAYS * 86_400_000).toISOString();
+  const { meta } = await env.DB.prepare("DELETE FROM alerts WHERE notified = 1 AND posted_at < ?1").bind(cutoff).run();
+  return meta.changes;
+}

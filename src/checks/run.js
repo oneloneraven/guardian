@@ -260,7 +260,7 @@ export async function checkOrganisation(env, read, by) {
  * @param {RunEnv} env
  * @param {By} by
  * @param {{ readerFor?: () => Promise<Reader> }} [options]
- * @returns {Promise<{ checked: number, unknown: string | null }>}
+ * @returns {Promise<{ checked: number, unknown: string | null, transitions: Transition[] }>}
  */
 export async function sweep(env, by, { readerFor } = {}) {
   const standard = await loadStandard(env);
@@ -272,13 +272,14 @@ export async function sweep(env, by, { readerFor } = {}) {
     if (!(error instanceof GithubUnavailable)) throw error;
     const reason = `Guardian can't reach GitHub: ${error.message}`;
     const { results } = await env.DB.prepare("SELECT name FROM repositories ORDER BY name").all();
-    let checked = 0;
+    /** @type {Transition[]} */
+    const transitions = [];
     for (const target of [ORGANISATION, ...results.map(row => String(row.name))]) {
       const scope = target === ORGANISATION ? "organisation" : "repository";
       const checks = await checkList(env, standard, scope, target);
-      checked += (await saveAllUnknown(env, target, checks, reason, by)).length;
+      transitions.push(...(await saveAllUnknown(env, target, checks, reason, by)));
     }
-    return { checked, unknown: reason };
+    return { checked: transitions.length, unknown: reason, transitions };
   }
 
   const installed = await list(read, "/installation/repositories", "the installed repositories", "Metadata read");
@@ -288,17 +289,19 @@ export async function sweep(env, by, { readerFor } = {}) {
       names.map(name => env.DB.prepare("INSERT OR IGNORE INTO repositories (name) VALUES (?1)").bind(name)),
     );
   }
-  let checked = (await checkOrganisation(env, read, by)).length;
+  /** @type {Transition[]} */
+  const transitions = await checkOrganisation(env, read, by);
   if ("unreadable" in installed) {
     const { results } = await env.DB.prepare("SELECT name FROM repositories ORDER BY name").all();
     for (const { name } of results) {
       const checks = await checkList(env, standard, "repository", String(name));
-      checked += (await saveAllUnknown(env, String(name), checks, installed.unreadable, by)).length;
+      transitions.push(...(await saveAllUnknown(env, String(name), checks, installed.unreadable, by)));
     }
   }
-  for (const name of names) checked += (await checkRepository(env, read, name, by)).length;
+  for (const name of names) transitions.push(...(await checkRepository(env, read, name, by)));
   return {
-    checked,
+    checked: transitions.length,
     unknown: "unknown" in standard ? standard.unknown : "unreadable" in installed ? installed.unreadable : null,
+    transitions,
   };
 }
